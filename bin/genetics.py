@@ -1,5 +1,5 @@
 import numpy as np
-import cae
+import conv_autoencoder
 import tensorflow as tf
 from tensorflow.keras.utils import plot_model
 
@@ -98,8 +98,8 @@ class Genotype:
     def build_model(self, input_shape, shape):
         pass
 
-Gene.define_gene = cae.define_gene
-Genotype.build_model = cae.build_model
+Gene.define_gene = conv_autoencoder.define_gene
+Genotype.build_model = conv_autoencoder.build_model
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from cgp import Genotype
+from genetics import Genotype
 from tensorflow.keras.callbacks import Callback
 
 class PSNRCallback(Callback):
