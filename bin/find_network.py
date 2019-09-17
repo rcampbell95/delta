@@ -12,8 +12,6 @@ def log_artifacts():
     mlflow.log_artifact("./genotype.csv")
 
 
-
-
 def find_network(config, dataset):
     if config["log"]:
         mlflow.set_tracking_uri("file:./mlruns")

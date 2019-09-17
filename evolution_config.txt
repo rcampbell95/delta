@@ -54,11 +54,20 @@ model_folder=/usr/local/home/pfurlong/projects/delta/delta/data/out
 # The height of the cartesian genetic grid
 grid_height=10
 
-# The width of the cartesian genetic grid
+# The width of the cartesian genetic grid (Deepest encoder possible)
 grid_width=3
 
-# The level back parameter for determing the depth of the encoder
+# The level back parameter for determing the depth of the encoder. Higher values are more likely to generate shallower models.
 level_back=2
+
+# Number of children to generate and evaluate per generation 
+num_children=1
+
+# Number of generations to produce offspring
+generations=50
+
+# Mutation probability of genes
+r=.1
 
 # Metric for evaluating fitness in evolutionary search
 metric=val_loss
