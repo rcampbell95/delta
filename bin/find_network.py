@@ -13,7 +13,7 @@ def log_artifacts():
 
 
 def find_network(config, dataset):
-    log = bool(config["evolutionary search"]["log"])
+    log = bool(config["evolutionary_search"]["log"])
 
     if log:
         #mlflow.set_tracking_uri("file:./mlruns")
