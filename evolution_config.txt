@@ -73,7 +73,7 @@ generations=50
 r=.1
 
 # Metric for evaluating fitness in evolutionary search
-metric=val_loss
+metric=loss
 
 # Mlflow logging
 log=True
