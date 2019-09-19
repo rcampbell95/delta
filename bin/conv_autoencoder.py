@@ -31,7 +31,6 @@ def build_model(self, input_shape, shape, random_seed):
     tf.random.set_random_seed(random_seed)
     
     # Define input convolutional layer
-    input_shape = input_shape
     out_channels = input_shape[0]
     pool_size = 2
     out_kernel_size = 1
@@ -101,13 +100,15 @@ def build_model(self, input_shape, shape, random_seed):
 
     model = Model(inputs=inputs, outputs=output)
 
+    print(model.summary())
+
     try:
         model = multi_gpu_model(model, cpu_relocation=True)
         print("Training using multiple GPUs")
     except:
         print("Training using CPU or single GPU")
 
-    model.compile(optimizer='adam',
+    model.compile(optimizer="adam",
             loss='mse')
     
     return model

@@ -29,8 +29,8 @@ class PSNRCallback(Callback):
 
 class Individual():
     def __init__(self, config, new_genotype=False):
-        self.batch_size = config["batch_size"]
-        self.epochs = config["epochs"]
+        self.batch_size = int(config["ml"]["batch_size"])
+        self.epochs = int(config["ml"]["num_epochs"])
         self.config = config
 
         if new_genotype == False:
@@ -54,13 +54,16 @@ class Individual():
         from contextlib import redirect_stdout
         import pandas as pd
         import numpy as np
-                
-        input_shape = config["data_shape"]
+        
+        chunk_size = int(self.config["ml"]["chunk_size"])
+        channels = int(self.config["ml"]["channels"])
+
+        input_shape = (channels, chunk_size, chunk_size)
 
         if "random_seed" not in self.config:
             self.config["random_seed"] = np.random.random()
 
-        self.model = self.genotype.build_model(input_shape, shape=self.config["shape"], random_seed=self.config["random_seed"])
+        self.model = self.genotype.build_model(input_shape, shape=self.config["evolutionary_search"]["shape"], random_seed=self.config["random_seed"])
 
         # plot_model(self.model, to_file="./model.png", show_shapes=True)
 
@@ -85,12 +88,13 @@ class Individual():
         pd.DataFrame(gene_attrs).to_csv("./genotype.csv")
 
         # Model callbacks
-        early_stopping = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.epochs // 10)
-        checkpoint = ModelCheckpoint('./model.h5', monitor='val_loss', mode='min', save_best_only=True, verbose=1)
+        early_stopping = EarlyStopping(monitor='loss', mode='min', verbose=1, patience=self.epochs // 10)
+        checkpoint = ModelCheckpoint('./model.h5', monitor='loss', mode='min', save_best_only=True, verbose=1)
 
-        psnr = PSNRCallback(x_test, y_test, self.batch_size)
+        # psnr = PSNRCallback(x_test, y_test, self.batch_size)
 
-        history = self.model.fit(dataset, epochs=self.epochs, validation_split=.3, batch_size = self.batch_size, shuffle=True, callbacks=[psnr, checkpoint, early_stopping])
-        history.history["test_psnr"] = psnr.test_psnr
+        # Remove psnr from callbacks, for now
+        history = self.model.fit(dataset, epochs=self.epochs, batch_size = None, steps_per_epoch=50, shuffle=True, callbacks=[checkpoint, early_stopping])
+        # history.history["test_psnr"] = psnr.test_psnr
 
         return history
