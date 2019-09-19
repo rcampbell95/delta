@@ -4,11 +4,11 @@ import tensorflow as tf
 from tensorflow.keras.utils import plot_model
 
 class Gene:
-    def __init__(self, node_id, policy_params):
+    def __init__(self, node_id, config):
         self.define_gene()
         self.node_id = node_id
-        self.rows = policy_params["grid_height"]
-        self.level_back = policy_params["level_back"]
+        self.rows = int(config["evolutionary_search"]["grid_height"])
+        self.level_back = int(config["evolutionary_search"]["level_back"])
 
         self.random_init()
     
@@ -50,18 +50,18 @@ class Gene:
         return False
 
 class Genotype:
-    def __init__(self, policy_params, genes=False):
-        self.height = policy_params["grid_height"]
-        self.width = policy_params["grid_width"]
+    def __init__(self, config, genes=False):
+        self.height = int(config["evolutionary_search"]["grid_height"])
+        self.width = int(config["evolutionary_search"]["grid_width"])
         self.n_genes = self.height * self.width + 1
-        self.mutation_rate = policy_params["r"]
+        self.mutation_rate = float(config["evolutionary_search"]["r"])
         
         if not genes:
-            self.genes = [Gene(i, policy_params) for i in range(self.n_genes)]
+            self.genes = [Gene(i, config) for i in range(self.n_genes)]
         else:
             self.genes = genes
                 
-    def replicate(self, policy_params=None):
+    def replicate(self, config=None):
         child_genes = self.genes.copy()
         encoder = self.trace_encoder()
         
@@ -70,7 +70,7 @@ class Genotype:
             for idx, gene in enumerate(child_genes):
                 if gene in encoder and gene.mutate(self.mutation_rate):
                     phenotype_mutated = True
-        child = Genotype(policy_params, child_genes)
+        child = Genotype(config, child_genes)
         return child
 
     def mutate_hidden_genes(self):

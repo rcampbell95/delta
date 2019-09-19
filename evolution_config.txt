@@ -25,6 +25,9 @@ num_input_threads=1
 # Machine learning parameters.
 [ml]
 
+# Channels in multispectral image
+channels=8
+
 # The height/width of the sub-images (chunks) that the input images are split in to.
 chunk_size=28
 
