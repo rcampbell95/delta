@@ -34,6 +34,8 @@ class Individual():
 
         input_shape = (channels, chunk_size, chunk_size)
 
+        # TODO - Set random seed for each search
+        # Should be attribute of search, not model
         if "random_seed" not in self.config:
             self.config["random_seed"] = np.random.random()
 
@@ -42,7 +44,7 @@ class Individual():
         # plot_model(self.model, to_file="./model.png", show_shapes=True)
 
         # Save model summary to text file
-        with open('./modelsummary.txt', 'w') as f:
+        with open(self.config["ml"]["output_folder"] + '/modelsummary.txt', 'w') as f:
             with redirect_stdout(f):
                 self.model.summary()
 
@@ -59,11 +61,15 @@ class Individual():
             else:
                 gene_attrs["Connection id"] = [gene.conn]
 
-        pd.DataFrame(gene_attrs).to_csv("./genotype.csv")
+        pd.DataFrame(gene_attrs).to_csv(self.config["ml"]["output_folder"] + "/genotype.csv")
 
         # Model callbacks
         early_stopping = EarlyStopping(monitor='loss', mode='min', verbose=1, patience=self.epochs // 10)
-        checkpoint = ModelCheckpoint('./model.h5', monitor='loss', mode='min', save_best_only=True, verbose=1)
+        checkpoint = ModelCheckpoint(self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"], 
+                                     monitor='loss', 
+                                     mode='min', 
+                                     save_best_only=True, 
+                                     verbose=1)
         
         # Remove psnr from callbacks, for now
         history = self.model.fit(dataset, epochs=self.epochs, batch_size = None, steps_per_epoch=50, shuffle=True, callbacks=[checkpoint, early_stopping])

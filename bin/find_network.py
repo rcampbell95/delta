@@ -5,11 +5,14 @@ import mlflow
 import os
 
 
-def log_artifacts():
+def log_artifacts(config):
     #mlflow.log_artifact("./model.png")
-    #mlflow.log_artifact("./model.h5")
-    mlflow.log_artifact("./modelsummary.txt")
-    mlflow.log_artifact("./genotype.csv")
+    output_folder = config["ml"]["output_folder"]
+    model_name = config["ml"]["model_dest_name"]
+    
+    mlflow.log_artifact(output_folder + "/" + model_name)
+    mlflow.log_artifact(output_folder + "/modelsummary.txt")
+    mlflow.log_artifact(output_folder + "/genotype.csv")
 
 
 def find_network(config, dataset):
@@ -19,8 +22,9 @@ def find_network(config, dataset):
         #mlflow.set_tracking_uri("file:./mlruns")
         mlflow.start_run()
 
-        for param in config.keys():
-            mlflow.log_param(param, config[param])
+        for category in config.keys():
+            for param in config[category].keys():
+                mlflow.log_param(param, config[category][param])
 
 
     ###
@@ -32,13 +36,13 @@ def find_network(config, dataset):
     metric_best = min(training_history.history[config["evolutionary_search"]["metric"]])
 
     if log:
-        log_artifacts()
+        log_artifacts(config)
         # Log parent as baseline for best model
         for metric in training_history.history.keys():
-            mlflow.log_metric(metric, min(training_history.history[metric]))
+            mlflow.log_metric(metric, min(training_history.history[metric]), step=0)
 
-    for i in range(1, int(config["evolutionary_search"]["generations"]) + 1):
-        print("\n\n\nGeneration ", i)
+    for generation in range(1, int(config["evolutionary_search"]["generations"]) + 1):
+        print("\n\n\nGeneration ", generation)
         
         children = [parent.generate_child() for i in range(int(config["evolutionary_search"]["num_children"]))]
 
@@ -60,9 +64,9 @@ def find_network(config, dataset):
 
             if log:
                 for metric in child_histories[idx_fittest].history.keys():
-                    mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]))
+                    mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]), step=generation)
                     print("Logged {} to mlflow".format(metric))
-                mlflow.log_metric("generation", i)
+                #mlflow.log_metric("generation", i)
 
                 try:
                     log_artifacts()
