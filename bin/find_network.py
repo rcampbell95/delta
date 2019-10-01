@@ -63,6 +63,7 @@ def find_network(config, dataset):
             print("Child {} is more fit than parent. Parent for next generation will be child {}".format(idx_fittest + 1, idx_fittest + 1))
 
             if log:
+                best_history = child_histories[idx_fittest]
                 for metric in child_histories[idx_fittest].history.keys():
                     mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]), step=generation)
                     print("Logged {} to mlflow".format(metric))
