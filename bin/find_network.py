@@ -9,7 +9,7 @@ def log_artifacts(config):
     #mlflow.log_artifact("./model.png")
     output_folder = config["ml"]["output_folder"]
     model_name = config["ml"]["model_dest_name"]
-    
+
     mlflow.log_artifact(output_folder + "/" + model_name)
     mlflow.log_artifact(output_folder + "/modelsummary.txt")
     mlflow.log_artifact(output_folder + "/genotype.csv")
@@ -32,14 +32,14 @@ def find_network(config, dataset):
     ###
     print("Generation 0")
     parent = Individual(config)
-    training_history = parent.evaluate_fitness(dataset)
-    metric_best = min(training_history.history[config["evolutionary_search"]["metric"]])
+    best_history= parent.evaluate_fitness(dataset)
+    metric_best = min(best_history.history[config["evolutionary_search"]["metric"]])
 
     if log:
         log_artifacts(config)
         # Log parent as baseline for best model
-        for metric in training_history.history.keys():
-            mlflow.log_metric(metric, min(training_history.history[metric]), step=0)
+        for metric in best_history.history.keys():
+            mlflow.log_metric(metric, min(best_history.history[metric]), step=0)
 
     for generation in range(1, int(config["evolutionary_search"]["generations"]) + 1):
         print("\n\n\nGeneration ", generation)
@@ -66,14 +66,14 @@ def find_network(config, dataset):
                 for metric in child_histories[idx_fittest].history.keys():
                     mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]), step=generation)
                     print("Logged {} to mlflow".format(metric))
-                #mlflow.log_metric("generation", i)
-
                 try:
                     log_artifacts()
                     print("Logged architecture")
                 except:
                     print("Artifact can't be logged!")
         else:
+            for metric in best_history.history.keys():
+                mlflow.log_metric(metric, min(best_history.history[metric]), step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 
