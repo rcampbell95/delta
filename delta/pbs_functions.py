@@ -23,7 +23,7 @@ def isNotString(a):
     except NameError:
         basestring = str
 
-    return (not isinstance(a, basestring))
+    return not isinstance(a, basestring)
 
 def stringToArgList(string):
     """Converts a single argument string into a list of arguments"""
@@ -33,7 +33,7 @@ def cleanJobID(jobID):
     '''Remove the part after the dot, when the input looks like 149691.pbspl233b.'''
 
     jobID = jobID.strip()
-    m = re.match('^(.*?)\.', jobID) #pylint: disable=W1401
+    m = re.match(r'^(.*?)\.', jobID)
     if m:
         return m.group(1)
     return jobID
@@ -68,7 +68,7 @@ def getActiveJobs(user):
     # Run qstat command to get a list of all active jobs by this user
     cmd = ['qstat', '-u', user]
 
-    (textOutput, err, status) = execute_command(cmd) #pylint: disable=W0612
+    (textOutput, _, status) = execute_command(cmd)
 
     lines = textOutput.split('\n')
 
@@ -111,8 +111,9 @@ def getNumCores(nodeType):
 
 # This is a less-capable version of the same function in ASP
 def submitJob(jobName, queueName, maxHours, minutesInDevelQueue, #pylint: disable=R0913,R0914
-              groupId, nodeType, commandPath, args, logPrefix, priority, setup_commands=[]):
+              groupId, nodeType, commandPath, args, logPrefix, priority, setup_commands=None):
     '''Submits a job to the PBS system.'''
+    setup_commands = setup_commands or []
 
     if len(queueName) > MAX_PBS_NAME_LENGTH:
         raise Exception('Job name "'+queueName+'" exceeds the maximum length of ' + str(MAX_PBS_NAME_LENGTH))

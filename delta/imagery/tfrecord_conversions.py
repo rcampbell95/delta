@@ -3,23 +3,45 @@ Functions for converting input images to TFRecords
 """
 import os
 import zipfile
+import tensorflow as tf
+from tensorflow.python.framework.errors_impl import OutOfRangeError
 
-from delta.imagery import utilities #pylint: disable=C0413
-from delta.imagery import tfrecord_utils #pylint: disable=C0413
-from delta.imagery.sources import landsat #pylint: disable=C0413
-from delta.imagery.sources import worldview #pylint: disable=C0413
-from delta.imagery.sources import landsat_toa #pylint: disable=C0413
-from delta.imagery.sources import worldview_toa #pylint: disable=C0413
+from delta.imagery import utilities
+from delta.imagery import tfrecord_utils
+from delta.imagery.sources import landsat
+from delta.imagery.sources import worldview
+from delta.imagery.sources import landsat_toa
+from delta.imagery.sources import worldview_toa
 
 
 #------------------------------------------------------------------------------
 
+def compress_tfrecord_file(input_path, output_path):
+    """Make a compressed copy of an uncompressed TFRecord file"""
 
-def _convert_image_to_tfrecord_tif(input_path, work_folder): #pylint: disable=W0613
+    writer   = tfrecord_utils.make_tfrecord_writer(output_path, compress=True)
+    reader   = tf.data.TFRecordDataset(input_path, compression_type="")
+    iterator = reader.make_one_shot_iterator()
+
+    next_element = iterator.get_next()
+    sess = tf.Session()
+
+    count = 0
+    while True:
+        try:
+            value = sess.run(next_element)
+            writer.write(value)
+            count += 1
+
+        except OutOfRangeError:
+            break
+    return count
+
+def _convert_image_to_tfrecord_tif(input_path, _):
     """Convert one input tif image"""
     return ([input_path], None)
 
-def _convert_image_to_tfrecord_rgba(input_path, work_folder): #pylint: disable=W0613
+def _convert_image_to_tfrecord_rgba(input_path, _):
     """Ignore the 4th channel of an RGBA image"""
     return ([input_path], [1,2,3])
 
@@ -75,7 +97,7 @@ def _convert_image_to_tfrecord_worldview(input_path, work_folder):
     return ([toa_path], bands_to_use)
 
 
-def convert_image_to_tfrecord(input_path, output_path, work_folder, tile_size, image_type):
+def convert_image_to_tfrecord(input_path, output_paths, work_folder, tile_size, image_type):
     """Convert a single image file (possibly compressed) of image_type into a single tfrecord
        file at output_path.  work_folder is deleted if the conversion is successful."""
 
@@ -94,7 +116,7 @@ def convert_image_to_tfrecord(input_path, output_path, work_folder, tile_size, i
     # Generate the intermediate tiff files
     tif_paths, bands_to_use = function(input_path, work_folder)
 
-    tfrecord_utils.tiffs_to_tf_record(tif_paths, output_path, tile_size, bands_to_use)
+    tfrecord_utils.tiffs_to_tf_record(tif_paths, output_paths, tile_size, bands_to_use)
 
     # Remove all of the temporary files
     os.system('rm -rf ' + work_folder)

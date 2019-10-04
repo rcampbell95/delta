@@ -1,5 +1,6 @@
+#!/usr/bin/python
 """
-Script to fetch DSWE (label) images from USGS corresponding to a given Landsat image.
+Script to fetch support images from USGS corresponding to a given Landsat image.
 """
 import os
 import sys
@@ -12,23 +13,7 @@ from osgeo import osr
 
 from usgs import api
 
-# TODO: Clean this up
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../delta')))
-
-# TODO: Why is the path not being set correctly???
-os.environ['PATH'] = os.environ['PATH'].replace('/nobackup/smcmich1/code/anaconda3\\Library\\bin;','').replace('\\','/')
-
-
-os.environ['PATH'] += os.pathsep + os.path.dirname(os.path.realpath(__file__))
-print('PATH = ' + str(os.environ['PATH']))
-
-# TODO: Make sure this goes everywhere!
-if sys.version_info < (3, 0, 0):
-    print('\nERROR: Must use Python version >= 3.0.')
-    sys.exit(1)
-
-from imagery import utilities  #pylint: disable=C0413
-#from imagery import landsat #pylint: disable=C0413
+from delta.imagery import utilities
 
 #------------------------------------------------------------------------------
 
@@ -119,7 +104,7 @@ def fetch_images(ll_coord, ur_coord, output_folder, options):
     if options.force_login or (not api._get_api_key(None)): #pylint: disable=W0212
         print('Logging in to USGS EarthExplorer...')
         dummy_result = api.login(options.user_ee, options.password_ee,
-                                 save=True, catalogId=CATALOG) #pylint: disable=W0612
+                                 save=True, catalogId=CATALOG)
 
         #print(api._get_api_key(None))
         #raise Exception('DEBUG')

@@ -17,6 +17,7 @@
 #  limitations under the License.
 # __END_LICENSE__
 
+#pylint: disable=R0915,R0914,R0912
 """
 Script to fetch all of the flood images from the USGS HDDS website.
 """
@@ -107,7 +108,7 @@ def get_dataset_list(options):
 def get_dataset_fields(dataset_list):
     """Code to look through available fields for datasets"""
 
-    for (dataset, full_name) in dataset_list: #pylint: disable=W0612
+    for (dataset, _) in dataset_list: #pylint: disable=W0612
 
         # Get the available filters for this data set
         print('----->  For DS = ' + dataset)
@@ -236,9 +237,9 @@ def main(argsIn): #pylint: disable=R0914,R0912
             REQUIRED_PARTS = ['displayId', 'summary']
             for p in REQUIRED_PARTS:
                 if (p not in scene) or (not scene[p]):
-                     print('scene object is missing element: ' + p)
-                     print(scene)
-                     fail = True
+                    print('scene object is missing element: ' + p)
+                    print(scene)
+                    fail = True
             if fail:
                 continue
 
