@@ -1,23 +1,54 @@
 import numpy as np
-import conv_autoencoder
 import tensorflow as tf
+import conv_autoencoder
 from tensorflow.keras.utils import plot_model
 
 class Gene:
     def __init__(self, node_id, config):
+        """
+        Parameters:
+        -----------
+            node_id: id used for identifying node in cartesian grid
+
+            config: search configuration
+
+        Returns:
+        -----------
+            None
+        """
         self.define_gene()
         self.node_id = node_id
         self.rows = int(config["evolutionary_search"]["grid_height"])
         self.level_back = int(config["evolutionary_search"]["level_back"])
 
         self.random_init()
-    
+
     def define_gene(self):
-        self.params = {}
+        """
+        Defines the gene for building corresponding models
+        using a dictionary of parameters with corresponding search space of values.
+        Parameters:
+        -----------
+            None
+
+        Returns:
+        -----------
+            None
+        """
+    def random_init(self):
+        """
+        Initializes the gene to random values in search space.
+        Parameters:
+        -----------
+            None
+
+        Returns:
+        -----------
+            None
+        """
         self.attrs = {}
 
-    def random_init(self):
-        for param, value in self.attrs.items():
+        for param in self.params:
             # Select a random value in the set of parameters
             r_idx = int(np.random.random() * 10)
             r_idx = r_idx % len(self.params[param])
@@ -62,6 +93,16 @@ class Genotype:
             self.genes = genes
                 
     def replicate(self, config=None):
+        """
+        Generates a child by mutating parent
+        Parameters:
+        -----------
+            config: Search configuration
+
+        Returns:
+        -----------
+            child: Child genotype created by mutating parent
+        """
         child_genes = self.genes.copy()
         encoder = self.trace_encoder()
         
@@ -74,7 +115,7 @@ class Genotype:
         return child
 
     def mutate_hidden_genes(self):
-        """Mutate hidden genes of parent"""
+        """Mutate hidden (non-functioning) genes of parent"""
         encoder = self.trace_encoder()
 
         hidden_mutated = False
@@ -85,6 +126,16 @@ class Genotype:
                     hidden_mutated = gene.mutate(self.mutation_rate)
     
     def trace_encoder(self):
+        """
+        Trace encoder back from output node
+        Parameters:
+        -----------
+            None
+
+        Returns:
+        -----------
+            encoder_nodes: Reversed list of nodes(genes) in encoder
+        """
         curr_id = self.genes[-1].node_id
         encoder_nodes = []
         #encoder_nodes.append(self.genes[-1])
@@ -96,11 +147,21 @@ class Genotype:
         return encoder_nodes
     
     def build_model(self, input_shape, shape):
-        pass
+        """
+        Build a model according to the individual's genotype
+        Parameters:
+        -----------
+            input_shape: Input shape of the model to build
+            
+            shape: Model type to build (asymmetric, symmetric, etc.)
+
+        Returns:
+        -----------
+            model: Compiled model for training
+        """
 
 Gene.define_gene = conv_autoencoder.define_gene
 Genotype.build_model = conv_autoencoder.build_model
-
 
 if __name__ == "__main__":
     parent = Genotype()

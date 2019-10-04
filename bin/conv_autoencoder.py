@@ -9,15 +9,6 @@ def define_gene(self):
                     "activation": ("selu", "relu", "tanh"),
                     "pooling": (True, False),
                     "output": ("dense", "transpose") }
-    
-    self.attrs = {"filter_size": 64, 
-                    "kernel_size": 3, 
-                    "skip": False, 
-                    "regularization": "spatial_dropout", 
-                    "dropout_rate": 0, 
-                    "activation": "relu",
-                    "pooling": False,
-                    "output": "dense"}
 
 
 def build_model(self, input_shape, shape, random_seed):
