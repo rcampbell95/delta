@@ -10,12 +10,16 @@ def log_artifacts(config):
     output_folder = config["ml"]["output_folder"]
     model_name = config["ml"]["model_dest_name"]
 
+    assert(os.path.exists(output_folder + "/" + model_name))
+    assert(os.path.exists(output_folder + "/modelsummary.txt"))
+    assert(os.path.exists(output_folder + "/genotype.csv"))
+
     mlflow.log_artifact(output_folder + "/" + model_name)
     mlflow.log_artifact(output_folder + "/modelsummary.txt")
     mlflow.log_artifact(output_folder + "/genotype.csv")
 
 
-def find_network(config, dataset):
+def find_network(config, trainset, valset=None):
     log = bool(config["evolutionary_search"]["log"])
 
     if log:
@@ -32,7 +36,7 @@ def find_network(config, dataset):
     ###
     print("Generation 0")
     parent = Individual(config)
-    best_history= parent.evaluate_fitness(dataset)
+    best_history= parent.evaluate_fitness(trainset, valset)
     metric_best = min(best_history.history[config["evolutionary_search"]["metric"]])
 
     if log:
@@ -50,7 +54,7 @@ def find_network(config, dataset):
 
         for child in children:
             child = parent.generate_child()
-            child_histories.append(child.evaluate_fitness(dataset))
+            child_histories.append(child.evaluate_fitness(trainset, valset))
             #tensorflow.keras.backend.clear_session()
 
         metric_vals = list(map(lambda history: min(history.history[config["evolutionary_search"]["metric"]]), child_histories))
@@ -68,7 +72,7 @@ def find_network(config, dataset):
                     mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]), step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
-                    log_artifacts()
+                    log_artifacts(config)
                     print("Logged architecture")
                 except:
                     print("Artifact can't be logged!")
@@ -114,17 +118,24 @@ if __name__ == "__main__":
     config_values = config.parse_config_file(options.config_file,
                                              options.data_folder, options.image_type)
 
-    print('loading data from ' + config_values['input_dataset']['data_directory'])
-    aeds = imagery_dataset.AutoencoderDataset(config_values)
-    ds = aeds.dataset()
-
-    ##num_bands = aeds.num_bands()
-
     batch_size = config_values['ml']['batch_size']
-    num_epochs = config_values["ml"]["num_epochs"]
+    num_epochs = config_values["ml"]["num_epochs"]    
 
-    ds = ds.repeat(num_epochs).batch(batch_size)
+    print('loading data from ' + config_values['input_dataset']['data_directory'])
+    aeds_train = imagery_dataset.AutoencoderDataset(config_values)
+    train_ds = aeds_train.dataset()
 
-    print(aeds.num_bands())
+    train_ds = train_ds.repeat(num_epochs).batch(batch_size)
 
-    find_network(config_values, ds)
+    train_directory = config_values['input_dataset']['data_directory']
+    
+    print('loading validation data from ' + config_values['input_dataset']['val_directory'])
+    config_values['input_dataset']['data_directory'] = config_values['input_dataset']['val_directory']
+    aeds_val = imagery_dataset.AutoencoderDataset(config_values)
+    val_ds = aeds_val.dataset()
+
+    val_ds = val_ds.repeat(num_epochs).batch(batch_size)
+
+    config_values['input_dataset']['data_directory'] = train_directory
+ 
+    find_network(config_values, train_ds, val_ds)

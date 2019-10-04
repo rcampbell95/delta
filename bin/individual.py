@@ -5,6 +5,7 @@ class Individual():
     def __init__(self, config, new_genotype=False):
         self.batch_size = int(config["ml"]["batch_size"])
         self.epochs = int(config["ml"]["num_epochs"])
+        self.steps_per_epoch = int(config["ml"]["steps_per_epoch"])
         self.config = config
 
         if new_genotype == False:
@@ -20,7 +21,7 @@ class Individual():
         child = Individual(self.config, child_genotype)
         return child
 
-    def evaluate_fitness(self, dataset):
+    def evaluate_fitness(self, trainset, valset):
         from tensorflow.keras.utils import plot_model
         from tensorflow.keras.callbacks import ModelCheckpoint
         from tensorflow.keras.callbacks import EarlyStopping
@@ -40,8 +41,6 @@ class Individual():
             self.config["random_seed"] = np.random.random()
 
         self.model = self.genotype.build_model(input_shape, shape=self.config["evolutionary_search"]["shape"], random_seed=self.config["random_seed"])
-
-        # plot_model(self.model, to_file="./model.png", show_shapes=True)
 
         # Save model summary to text file
         with open(self.config["ml"]["output_folder"] + '/modelsummary.txt', 'w') as f:
@@ -65,14 +64,23 @@ class Individual():
 
         # Model callbacks
         early_stopping = EarlyStopping(monitor='loss', mode='min', verbose=1, patience=self.epochs // 10)
-        checkpoint = ModelCheckpoint(self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"], 
-                                     monitor='loss', 
-                                     mode='min', 
-                                     save_best_only=True, 
-                                     verbose=1)
+
+        filepath = self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"]
+        checkpoint = ModelCheckpoint(filepath       = filepath, 
+                                     monitor        = 'loss', 
+                                     mode           = 'min', 
+                                     save_best_only = True, 
+                                     verbose        = 1)
         
         # Remove psnr from callbacks, for now
-        history = self.model.fit(dataset, epochs=self.epochs, batch_size = None, steps_per_epoch=50, shuffle=True, callbacks=[checkpoint, early_stopping])
+        history = self.model.fit(x                = trainset, 
+                                 epochs           = self.epochs, 
+                                 batch_size       = None, 
+                                 steps_per_epoch  = self.steps_per_epoch, 
+                                 shuffle          = True, 
+                                 callbacks        = [checkpoint, early_stopping],
+                                 validation_data  = valset,
+                                 validation_steps = None if valset is None else self.steps_per_epoch)
         # history.history["test_psnr"] = psnr.test_psnr
 
         return history
