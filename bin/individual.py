@@ -7,6 +7,7 @@ class Individual():
         self.epochs = int(config["ml"]["num_epochs"])
         self.steps_per_epoch = int(config["ml"]["steps_per_epoch"])
         self.config = config
+        self.model = None
 
         if new_genotype == False:
             self.genotype = Genotype(config)
@@ -63,11 +64,14 @@ class Individual():
         pd.DataFrame(gene_attrs).to_csv(self.config["ml"]["output_folder"] + "/genotype.csv")
 
         # Model callbacks
-        early_stopping = EarlyStopping(monitor='loss', mode='min', verbose=1, patience=self.epochs // 10)
+        early_stopping = EarlyStopping(monitor=self.config["evolutionary_search"]["metric"], 
+                                       mode='min', 
+                                       verbose=1, 
+                                       patience=self.epochs // 10)
 
         filepath = self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"]
         checkpoint = ModelCheckpoint(filepath       = filepath, 
-                                     monitor        = 'loss', 
+                                     monitor        = self.config["evolutionary_search"]["metric"], 
                                      mode           = 'min', 
                                      save_best_only = True, 
                                      verbose        = 1)

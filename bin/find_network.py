@@ -86,6 +86,8 @@ def find_network(config, trainset, valset=None):
     if log:
         mlflow.end_run()
 
+    return parent.model
+
 
 if __name__ == "__main__":
     import os
