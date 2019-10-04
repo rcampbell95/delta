@@ -5,10 +5,13 @@
 [input_dataset]
 
 # The folder where the input files are located (required)
-data_directory=/usr/local/home/pfurlong/projects/delta/delta/data/in/usgs_wv_label/input_records
+data_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/train
+
+# The folder where validation files are located
+val_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/val
 
 # In train_autoencoder.py, this is only used for logging names
-image_type=worldview
+image_type=landsat
 
 # Extension of the images in the input folder, usually .tfrecord
 extension=.tfrecord
@@ -16,23 +19,30 @@ extension=.tfrecord
 # A folder containing label files for the input images.  The folder
 # must be a mirror of the input image folder with the input images
 # replaced with label images with the same name but with the ".tfrecordlabel" extension.
-label_directory=/usr/local/home/pfurlong/projects/delta/delta/data/in/usgs_wv_label/input_records
+label_directory=/home/rob/nasa/delta/bin/landsat_tfrecord
 
 # The number of parallel threads to use for loading input data.
 # The actual number is twice this, half for input and half for labels.
 num_input_threads=1
 
+# The size of the buffer used to shuffle input data as it is loaded.
+# - Input chunks are loaded into the buffer before they are shuffled.
+shuffle_buffer_size=4000
+
 # Machine learning parameters.
 [ml]
 
 # Channels in multispectral image
-channels=8
+channels=7
 
 # The height/width of the sub-images (chunks) that the input images are split in to.
 chunk_size=28
 
 # The overlap amount in pixels of adjacent image chunks.
-chunk_overlap=10
+chunk_overlap=1
+
+# Total number of batches before declaring one epoch finished
+steps_per_epoch=50
 
 # The number of times each input image is fed through the training network.
 num_epochs=70
@@ -44,13 +54,13 @@ batch_size=2
 num_hidden=32
 
 # The name to store the final model in.
-model_dest_name=autoencoder_model.keras.tf
+model_dest_name=autoencoder_model.h5
 
 # The folder to store extraneous ouput
-output_folder=/usr/local/home/pfurlong/projects/delta/delta/data/out
+output_folder=/home/rob/nasa/delta/delta/data/out
 
 # If specified, this folder is used to store model checkpoints.
-model_folder=/usr/local/home/pfurlong/projects/delta/delta/data/out
+model_folder=/home/rob/nasa/delta/delta/data/out
 
 [evolutionary_search]
 
@@ -67,16 +77,16 @@ level_back=2
 num_children=1
 
 # Number of generations to produce offspring
-generations=50
+generations=1
 
 # Mutation probability of genes
 r=.1
 
 # Metric for evaluating fitness in evolutionary search
-metric=loss
+metric=val_loss
 
 # Mlflow logging
-log=True
+log=False
 
 # Autoencoder shape: asymmetric or symmetric
 shape=asymmetric
