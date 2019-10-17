@@ -19,8 +19,8 @@ def log_artifacts(config):
     mlflow.log_artifact(output_folder + "/genotype.csv")
 
 
-def find_network(config, trainset, valset=None):
-    log = bool(config["evolutionary_search"]["log"])
+def find_network(config):
+    log = True if config["evolutionary_search"]["log"].lower() == "true" else False 
 
     if log:
         #mlflow.set_tracking_uri("file:./mlruns")

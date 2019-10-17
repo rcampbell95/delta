@@ -1,4 +1,4 @@
-from genetics import Genotype
+from conv_autoencoder import ConvAutoencoderGenotype
 from tensorflow.keras.callbacks import Callback
 
 class Individual():
@@ -8,9 +8,10 @@ class Individual():
         self.steps_per_epoch = int(config["ml"]["steps_per_epoch"])
         self.config = config
         self.model = None
+        self.model_path = self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"]
 
         if new_genotype == False:
-            self.genotype = Genotype(config)
+            self.genotype = ConvAutoencoderGenotype(config)
         else:
             self.genotype = new_genotype
 

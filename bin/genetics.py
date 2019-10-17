@@ -1,7 +1,4 @@
 import numpy as np
-import tensorflow as tf
-import conv_autoencoder
-from tensorflow.keras.utils import plot_model
 
 class Gene:
     def __init__(self, node_id, config):
@@ -111,7 +108,8 @@ class Genotype:
             for idx, gene in enumerate(child_genes):
                 if gene in encoder and gene.mutate(self.mutation_rate):
                     phenotype_mutated = True
-        child = Genotype(config, child_genes)
+
+        child = self.__class__(config, child_genes)
         return child
 
     def mutate_hidden_genes(self):
@@ -160,10 +158,10 @@ class Genotype:
             model: Compiled model for training
         """
 
-Gene.define_gene = conv_autoencoder.define_gene
-Genotype.build_model = conv_autoencoder.build_model
-
 if __name__ == "__main__":
+    import tensorflow as tf
+    from tensorflow.keras.utils import plot_model
+
     parent = Genotype()
 
     print("{:^10s} {:^15s} {:^10s} {:^15s} {:^15s} {:^10s}".format("Node id", "Connection id", "Mutated", "Filter Size",

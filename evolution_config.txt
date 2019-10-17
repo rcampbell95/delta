@@ -42,12 +42,12 @@ chunk_size=28
 chunk_overlap=1
 
 # Total number of batches before declaring one epoch finished
-steps_per_epoch=50
+steps_per_epoch=200
 
 # The number of times each input image is fed through the training network.
-num_epochs=70
+num_epochs=50
 
-# The number of input images used in each training iteration
+# The number of input chunks used in each training iteration
 batch_size=2
 
 # The number of hidden layers in an autoencoder
@@ -77,7 +77,7 @@ level_back=2
 num_children=1
 
 # Number of generations to produce offspring
-generations=1
+generations=50
 
 # Mutation probability of genes
 r=.1
@@ -86,7 +86,7 @@ r=.1
 metric=val_loss
 
 # Mlflow logging
-log=False
+log=True
 
 # Autoencoder shape: asymmetric or symmetric
 shape=asymmetric
