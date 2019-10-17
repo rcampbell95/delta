@@ -4,6 +4,7 @@ Script test out the image chunk generation calls.
 """
 import sys
 import os
+
 import argparse
 import functools
 import matplotlib.pyplot as plt
@@ -88,6 +89,9 @@ def main(argsIn): #pylint: disable=R0914
                         help="Run this many images through the AE after training and write the "
                         "input/output pairs to disk.")
 
+    parser.add_argument("--num-eval", dest="num_eval", default=100, type=int,
+                        help="Use this many input pairs for evaluation instead of training.")
+
     parser.add_argument("--num-gpus", dest="num_gpus", default=0, type=int,
                         help="Try to use this many GPUs.")
 
@@ -97,12 +101,18 @@ def main(argsIn): #pylint: disable=R0914
         print(usage)
         return -1
 
-    config_values = config.parse_config_file(options.config_file,
-                                             options.data_folder, options.image_type)
-
-    #batch_size = config_values['ml']['batch_size']
-    #num_epochs = config_values['ml']['num_epochs']
-
+    config.load_config_file(options.config_file)
+    config_values = config.get_config()
+    if options.data_folder:
+        config_values['input_dataset']['data_directory'] = options.data_folder
+    if options.image_type:
+        config_values['input_dataset']['image_type'] = options.image_type
+    if config_values['input_dataset']['data_directory'] is None:
+        print('Must specify a data_directory.', file=sys.stderr)
+        sys.exit(0)
+    if config_values['input_dataset']['image_type'] is None:
+        print('Must specify an image type.', file=sys.stderr)
+        sys.exit(0)
 
     output_folder = config_values['ml']['output_folder']
     if not os.path.exists(output_folder):
@@ -119,20 +129,22 @@ def main(argsIn): #pylint: disable=R0914
 
     print('Creating experiment')
     experiment = Experiment(mlflow_tracking_dir,
-                            'autoencoder_%s'%(config_values['input_dataset']['image_type'],),
+                            'conv_autoencoder_%s'%(config_values['input_dataset']['image_type'],),
                             output_dir=output_folder)
     mlflow.log_param('image type',   config_values['input_dataset']['image_type'])
     mlflow.log_param('image folder', config_values['input_dataset']['data_directory'])
     mlflow.log_param('chunk size',   config_values['ml']['chunk_size'])
     print('Creating model')
     data_shape = (aeds.chunk_size(), aeds.chunk_size(), aeds.num_bands())
-    model = make_autoencoder(data_shape, encoding_size=config_values['ml']['num_hidden'])
+    model = make_autoencoder(data_shape, encoding_size=int(config_values['ml']['num_hidden']))
     print('Training')
 
     # Estimator interface requires the dataset to be constructed within a function.
     tf.logging.set_verbosity(tf.logging.INFO)
     dataset_fn = functools.partial(assemble_dataset, config_values)
-    estimator = experiment.train(model, dataset_fn, steps_per_epoch=1000,
+    test_fn = None
+    estimator = experiment.train(model, dataset_fn, test_fn,
+                                 model_folder=config_values['ml']['model_folder'],
                                  log_model=False, num_gpus=options.num_gpus)
     #model = experiment.train_keras(model, dataset_fn,
     #                               num_epochs=config_values['ml']['num_epochs'],
