@@ -115,9 +115,6 @@ def find_network(config_values):
     if log:
         mlflow.end_run()
 
-    return parent.model
-
-
 if __name__ == "__main__":
     import os
     import sys
