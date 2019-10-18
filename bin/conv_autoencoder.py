@@ -5,7 +5,7 @@ def define_gene(self):
     self.params = {"filter_size": (16, 32, 64, 128),
                     "kernel_size": (1, 2, 3, 4, 5),
                     "skip": (True, False),
-                    "regularization": ("spatial_dropout", "dropout", "alpha_dropout"),
+                    "regularization": ("spatial_dropout", "dropout"),
                     "dropout_rate": (0.1, 0.3, 0.5),
                     "activation": ("selu", "relu", "tanh"),
                     "pooling": (True, False),
@@ -55,9 +55,7 @@ class ConvAutoencoderGenotype(Genotype):
                 x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
             elif gene.attrs["regularization"] == "dropout":
                 x = Dropout(rate=gene.attrs["dropout_rate"])(x)
-           elif gene.attrs["regularization"] == "alpha_dropout":
-                x = AlphaDropout(rate=gene.attrs["dropout_rate"])(x)
-            
+
             if gene.attrs["skip"]:
                 skip_values.append(x)
 

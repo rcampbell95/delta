@@ -5,10 +5,10 @@
 [input_dataset]
 
 # The folder where the input files are located (required)
-data_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/train
+data_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/data/train
 
 # The folder where validation files are located
-val_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/val
+val_directory=/home/rob/nasa/delta/bin/landsat_tfrecord/data/val
 
 # In train_autoencoder.py, this is only used for logging names
 image_type=landsat
@@ -42,7 +42,7 @@ chunk_size=28
 chunk_overlap=1
 
 # Total number of batches before declaring one epoch finished
-steps_per_epoch=200
+steps_per_epoch=50
 
 # The number of times each input image is fed through the training network.
 num_epochs=50

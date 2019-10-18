@@ -7,7 +7,6 @@ class Individual():
         self.epochs = int(config["ml"]["num_epochs"])
         self.steps_per_epoch = int(config["ml"]["steps_per_epoch"])
         self.config = config
-        self.model = None
         self.model_path = self.config["ml"]["model_folder"] + "/" + self.config["ml"]["model_dest_name"]
 
         if new_genotype == False:
@@ -35,19 +34,14 @@ class Individual():
         chunk_size = int(self.config["ml"]["chunk_size"])
         channels = int(self.config["ml"]["channels"])
 
-        input_shape = (channels, chunk_size, chunk_size)
+        input_shape = (chunk_size, chunk_size, channels)
 
-        # TODO - Set random seed for each search
-        # Should be attribute of search, not model
-        if "random_seed" not in self.config:
-            self.config["random_seed"] = np.random.random()
-
-        self.model = self.genotype.build_model(input_shape, shape=self.config["evolutionary_search"]["shape"], random_seed=self.config["random_seed"])
+        model = self.genotype.build_model(self.config, input_shape)
 
         # Save model summary to text file
         with open(self.config["ml"]["output_folder"] + '/modelsummary.txt', 'w') as f:
             with redirect_stdout(f):
-                self.model.summary()
+                model.summary()
 
         # Save genetics to csv
         gene_attrs = {}
@@ -78,7 +72,7 @@ class Individual():
                                      verbose        = 1)
         
         # Remove psnr from callbacks, for now
-        history = self.model.fit(x                = trainset, 
+        history = model.fit(x                = trainset, 
                                  epochs           = self.epochs, 
                                  batch_size       = None, 
                                  steps_per_epoch  = self.steps_per_epoch, 
