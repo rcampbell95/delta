@@ -14,10 +14,10 @@ def define_gene(self):
 Gene.define_gene = define_gene
 
 class ConvAutoencoderGenotype(Genotype):
-    def __init__(self, config, genes=False):
-        super(ConvAutoencoderGenotype, self).__init__(config, genes)
+    def __init__(self, config_values, genes=False):
+        super(ConvAutoencoderGenotype, self).__init__(config_values, genes)
 
-    def build_model(self, config, input_shape):
+    def build_model(self, config_values, input_shape):
         from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, Add, SpatialDropout2D, Dropout
         from tensorflow.keras.layers import Flatten, Dense, Reshape, MaxPooling2D, UpSampling2D
         from tensorflow.keras.layers import AlphaDropout
@@ -27,11 +27,11 @@ class ConvAutoencoderGenotype(Genotype):
         import tensorflow as tf
         
         # Define input convolutional layer
-        out_channels = int(config["ml"]["channels"])
+        out_channels = int(config_values["ml"]["channels"])
         out_dims = input_shape[1]
         pool_size = 2
         out_kernel_size = 1
-        shape = config["evolutionary_search"]["shape"]
+        shape = config_values["evolutionary_search"]["shape"]
 
         inputs = Input(shape=input_shape)
         x = inputs
@@ -103,7 +103,7 @@ class ConvAutoencoderGenotype(Genotype):
         print(model.summary())
 
         try:
-            model = multi_gpu_model(model, cpu_relocation=True)
+            model = multi_gpu_model(model, gpus=config_values["ml"]["num_gpus"])
             print("Training using multiple GPUs")
         except:
             print("Training using CPU or single GPU")

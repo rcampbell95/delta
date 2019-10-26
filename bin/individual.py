@@ -73,13 +73,13 @@ class Individual():
         
         # Remove psnr from callbacks, for now
         history = model.fit(x                = trainset, 
-                                 epochs           = self.epochs, 
-                                 batch_size       = None, 
-                                 steps_per_epoch  = self.steps_per_epoch, 
-                                 shuffle          = True, 
-                                 callbacks        = [checkpoint, early_stopping],
-                                 validation_data  = valset,
-                                 validation_steps = None if valset is None else self.steps_per_epoch)
+                            epochs           = self.epochs, 
+                            batch_size       = None, 
+                            steps_per_epoch  = self.steps_per_epoch, 
+                            shuffle          = True, 
+                            callbacks        = [checkpoint, early_stopping],
+                            validation_data  = valset,
+                            validation_steps = None if valset is None else self.steps_per_epoch)
         # history.history["test_psnr"] = psnr.test_psnr
 
         return history
