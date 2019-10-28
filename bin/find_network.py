@@ -61,6 +61,7 @@ def find_network(config_values):
     ###
     print("Generation 0")
     parent = Individual(config_values)
+
     trainset, valset = load_data(config_values)
     
     best_history= parent.evaluate_fitness(trainset, valset)
@@ -82,7 +83,6 @@ def find_network(config_values):
         for child in children:
             trainset, valset = load_data(config_values)
             
-            child = parent.generate_child()
             child_histories.append(child.evaluate_fitness(trainset, valset))
             tensorflow.keras.backend.clear_session()
 
