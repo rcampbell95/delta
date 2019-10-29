@@ -1,7 +1,6 @@
 import os
 import sys
 import argparse
-from find_network import find_network
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from delta.imagery import imagery_dataset 
@@ -43,18 +42,18 @@ parser.add_argument("--image-type", dest="image_type", default=None,
 parser.add_argument("--num-debug-images", dest="num_debug_images", default=0, type=int,
                         help="Run this many images through the AE after training and write the "
                         "input/output pairs to disk.")
-
+parser.add_argument("--model-path", dest="model_path", default=None,
+                    help="Path to Keras model for generating images.")
 
 options = parser.parse_args()
 
-config_values = config.parse_config_file(options.config_file,
-                                             options.data_folder, options.image_type)
-
+config.load_config_file(options.config_file)
+config_values = config.get_config()
 
 
 # path = config_values["ml"]["output_folder"] + "/" + config_values["ml"]["model_dest_name"]
-path = "./mlruns/0/7f451edb1fa6476ba92165938abbf57d/artifacts/autoencoder_model.h5"
-model = tf.keras.models.load_model(path)
+#options.model_path = "./mlruns/0/"
+model = tf.keras.models.load_model(options.model_path)
 
 # Make a non-shuffled dataset with a simple iterator
 
