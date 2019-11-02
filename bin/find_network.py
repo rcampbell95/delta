@@ -4,44 +4,18 @@ from individual import Individual
 import mlflow
 import os
 
-def load_data(config_values):
-    from delta.imagery import imagery_dataset
-
-
-    batch_size = config_values['ml']['batch_size']
-    num_epochs = config_values["ml"]["num_epochs"]
-
-    print('loading data from ' + config_values['input_dataset']['data_directory'])
-    aeds_train = imagery_dataset.AutoencoderDataset(config_values)
-    train_ds = aeds_train.dataset(filter_zero=False)
-
-    train_ds = train_ds.repeat(num_epochs).batch(batch_size)
-
-    train_directory = config_values['input_dataset']['data_directory']
-
-    print('loading validation data from ' + config_values['input_dataset']['val_directory'])
-    config_values['input_dataset']['data_directory'] = config_values['input_dataset']['val_directory']
-    aeds_val = imagery_dataset.AutoencoderDataset(config_values)
-    val_ds = aeds_val.dataset(filter_zero=False)
-
-    val_ds = val_ds.repeat(num_epochs).batch(batch_size)
-
-    config_values['input_dataset']['data_directory'] = train_directory
- 
-    return train_ds, val_ds
-
-def log_artifacts(config_values):
+def log_artifacts(config_values, fittest_index):
     #mlflow.log_artifact("./model.png")
-    output_folder = config_values["ml"]["output_folder"]
+    output_folder = os.path.join(config_values["ml"]["output_folder"], str(fittest_index))
     model_name = config_values["ml"]["model_dest_name"]
 
-    assert(os.path.exists(output_folder + "/" + model_name))
-    assert(os.path.exists(output_folder + "/modelsummary.txt"))
-    assert(os.path.exists(output_folder + "/genotype.csv"))
+    assert(os.path.exists(os.path.join(output_folder, model_name)))
+    assert(os.path.exists(os.path.join(output_folder, "modelsummary.txt")))
+    assert(os.path.exists(os.path.join(output_folder, "genotype.csv")))
 
-    mlflow.log_artifact(output_folder + "/" + model_name)
-    mlflow.log_artifact(output_folder + "/modelsummary.txt")
-    mlflow.log_artifact(output_folder + "/genotype.csv")
+    mlflow.log_artifact(os.path.join(output_folder, model_name))
+    mlflow.log_artifact(os.path.join(output_folder, "modelsummary.txt"))
+    mlflow.log_artifact(os.path.join(output_folder, "genotype.csv"))
 
 
 def find_network(config_values):
@@ -61,32 +35,32 @@ def find_network(config_values):
     ###
     print("Generation 0")
     parent = Individual(config_values)
-
-    trainset, valset = load_data(config_values)
     
-    best_history= parent.evaluate_fitness(trainset, valset)
-    metric_best = min(best_history.history[config_values["evolutionary_search"]["metric"]])
+    parent.start()
+    parent.join()
+
+    best_history = Individual.histories()[0]
+    metric_best = min(best_history[config_values["evolutionary_search"]["metric"]])
 
     if log:
-        log_artifacts(config_values)
+        log_artifacts(config_values, 0)
         # Log parent as baseline for best model
-        for metric in best_history.history.keys():
-            mlflow.log_metric(metric, min(best_history.history[metric]), step=0)
+        for metric in best_history.keys():
+            mlflow.log_metric(metric, min(best_history[metric]), step=0)
 
     for generation in range(1, int(config_values["evolutionary_search"]["generations"]) + 1):
         print("\n\n\nGeneration ", generation)
         
-        children = [parent.generate_child() for i in range(int(config_values["evolutionary_search"]["num_children"]))]
-
-        child_histories = []
+        children = [parent.generate_child(i) for i in range(int(config_values["evolutionary_search"]["num_children"]))]
 
         for child in children:
-            trainset, valset = load_data(config_values)
-            
-            child_histories.append(child.evaluate_fitness(trainset, valset))
-            tensorflow.keras.backend.clear_session()
+            child.start()            
+        for child in children:
+            child.join()
 
-        metric_vals = list(map(lambda history: min(history.history[config_values["evolutionary_search"]["metric"]]), child_histories))
+        child_histories = Individual.histories()
+            
+        metric_vals = list(map(lambda history: min(history[config_values["evolutionary_search"]["metric"]]), child_histories))
         idx_fittest = metric_vals.index(min(metric_vals))
 
         if metric_vals[idx_fittest] < metric_best:
@@ -97,17 +71,17 @@ def find_network(config_values):
 
             if log:
                 best_history = child_histories[idx_fittest]
-                for metric in child_histories[idx_fittest].history.keys():
-                    mlflow.log_metric(metric, min(child_histories[idx_fittest].history[metric]), step=generation)
+                for metric in child_histories[idx_fittest].keys():
+                    mlflow.log_metric(metric, min(child_histories[idx_fittest][metric]), step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
-                    log_artifacts(config_values)
+                    log_artifacts(config_values, idx_fittest)
                     print("Logged architecture")
                 except:
                     print("Artifact can't be logged!")
         else:
-            for metric in best_history.history.keys():
-                mlflow.log_metric(metric, min(best_history.history[metric]), step=generation)
+            for metric in best_history.keys():
+                mlflow.log_metric(metric, min(best_history[metric]), step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 
