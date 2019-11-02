@@ -1,7 +1,7 @@
 import numpy as np
 
 class Gene:
-    def __init__(self, node_id, config):
+    def __init__(self, node_id, config, gene=None):
         """
         Parameters:
         -----------
@@ -19,6 +19,7 @@ class Gene:
         self.level_back = int(config["evolutionary_search"]["level_back"])
 
         self.random_init()
+
 
     def define_gene(self):
         """
@@ -100,8 +101,11 @@ class Genotype:
         -----------
             child: Child genotype created by mutating parent
         """
-        child_genes = self.genes.copy()
-        encoder = self.trace_encoder()
+        import copy
+
+        child_genes = [copy.deepcopy(gene) for idx, gene in enumerate(self.genes)]
+        child = self.__class__(config, child_genes)
+        encoder = child.trace_encoder()
         
         phenotype_mutated = False
         while not phenotype_mutated:
@@ -109,7 +113,6 @@ class Genotype:
                 if gene in encoder and gene.mutate(self.mutation_rate):
                     phenotype_mutated = True
 
-        child = self.__class__(config, child_genes)
         return child
 
     def mutate_hidden_genes(self):
@@ -157,36 +160,5 @@ class Genotype:
         -----------
             model: Compiled model for training
         """
-
-if __name__ == "__main__":
-    import tensorflow as tf
-    from tensorflow.keras.utils import plot_model
-
-    parent = Genotype()
-
-    print("{:^10s} {:^15s} {:^10s} {:^15s} {:^15s} {:^10s}".format("Node id", "Connection id", "Mutated", "Filter Size",
-                                                      "Kernel Size", "Skip"))
-
-    child = parent.replicate()
-    coding_sequence = child.trace_encoder()
-
-    ids = [gene.node_id for gene in coding_sequence]
-    ids = ids[1:]
-
-    print("input", *reversed(ids), "output", sep=" -> ")
-    child.genotype.build_cae()
-
-    output = model(tf.cast(np.random.rand(32, 32, 32, 3), tf.float32))
-    print(output.shape)
-
-    plot_model(model, to_file='parent_model.png', show_shapes=True)
-
-    for i in range(5):
-        child = child.replicate()
-
-    model = child.genotype.build_cae()
-
-    plot_model(model, to_file="child_model.png", show_shapes=True)
-
 
 
