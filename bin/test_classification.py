@@ -61,7 +61,7 @@ class Classifier(multiprocessing.Process):
         self.run_info = run_info
 
         self.strategy = self.run_info["strategy"]
-        self.run_info["steps_per_epoch"] = 1000
+        self.run_info["steps_per_epoch"] = 1
         #self.config_values = config_values
         #if model_template:
         #    try:
@@ -91,8 +91,7 @@ class Classifier(multiprocessing.Process):
                 layer.trainable = trainable 
 
             x = Flatten(name="flatten_out")(self.model.layers[out_idx].output)
-            x = Dense(2, name="dense_out")(x)
-            x = Activation("sigmoid", name="act_2")(x)
+            x = Dense(2, activation="softmax", name="dense_out")(x)
             
             
             model = Model(inputs=self.model.inputs, outputs=x)
@@ -181,7 +180,10 @@ class Classifier(multiprocessing.Process):
     
         return callbacks
 
-    def train_model(self, trainset, valset, steps_per_epoch=1000):
+    def train_model(self, trainset, valset, steps_per_epoch):
+        import math
+
+        validation_split = .8
         model_folder = self.config_values["ml"]["model_folder"]
         epochs = self.config_values["ml"]["num_epochs"]
 
@@ -194,10 +196,10 @@ class Classifier(multiprocessing.Process):
         history = self.model.fit(x = trainset,
                                  epochs=epochs, 
                                  batch_size = None,
-                                 steps_per_epoch = steps_per_epoch,
+                                 steps_per_epoch = math.ceil(steps_per_epoch * validation_split),
                                  validation_data = valset, 
                                  shuffle=True, 
-                                 validation_steps = steps_per_epoch,
+                                 validation_steps = math.ceil(steps_per_epoch * (1 - validation_split)),
                                  callbacks=callbacks,
                                  verbose=0)
 
@@ -239,9 +241,8 @@ class Classifier(multiprocessing.Process):
                 trainset, valset = self.load_data()
 
                 trainable = False if self.strategy == 0 else True
-                self.build_model(trainable=trainable) # Need to make this more general purpose. i.e. also for baseline since 
-                                                    # it only builds a model from disk right now.
-                                                    
+                self.build_model(trainable=trainable) 
+                
                 self.train_model(trainset, valset, self.run_info["steps_per_epoch"])
 
                 # TODO -- add artifact logging
@@ -268,7 +269,7 @@ run_info = pd.read_csv(options.run_csv)
 path = options.data_folder
 
 mlflow.set_tracking_uri("file:./mlruns")
-mlflow.set_experiment("concurrent_classification")
+mlflow.set_experiment("log_batch_classification")
 
 run_id_key = "Run ID"
 
