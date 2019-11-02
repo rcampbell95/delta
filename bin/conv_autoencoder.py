@@ -8,7 +8,6 @@ def define_gene(self):
                     "regularization": ("spatial_dropout", "dropout"),
                     "dropout_rate": (0.1, 0.3, 0.5),
                     "activation": ("selu", "relu", "tanh"),
-                    "pooling": (True, False),
                     "output": ("dense", "transpose") }
 
 Gene.define_gene = define_gene
@@ -16,6 +15,7 @@ Gene.define_gene = define_gene
 class ConvAutoencoderGenotype(Genotype):
     def __init__(self, config_values, genes=False):
         super(ConvAutoencoderGenotype, self).__init__(config_values, genes)
+
 
     def build_model(self, config_values, input_shape):
         from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, Add, SpatialDropout2D, Dropout
@@ -38,6 +38,7 @@ class ConvAutoencoderGenotype(Genotype):
         
         coding_sequence = self.trace_encoder()
         coding_sequence = coding_sequence[1:]
+        num_nodes = len(coding_sequence)
         
         skip_values = []
         
@@ -48,7 +49,7 @@ class ConvAutoencoderGenotype(Genotype):
             x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size, 
                         padding = "same")(x)
 
-            #x = MaxPooling2D(pool_size=(pool_size, pool_size))(x)
+            x = MaxPooling2D(pool_size=(pool_size, pool_size))(x)
             x = Activation(gene.attrs["activation"])(x)
 
             if gene.attrs["regularization"] == "spatial_dropout":
@@ -66,7 +67,7 @@ class ConvAutoencoderGenotype(Genotype):
                 kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
                 
-                #x = UpSampling2D(size=(pool_size, pool_size))(x)
+                x = UpSampling2D(size=(pool_size, pool_size))(x)
                 x = Conv2DTranspose(filters=gene.attrs["filter_size"], 
                                     kernel_size=kernel_size, 
                                     padding="same")(x)
@@ -88,13 +89,19 @@ class ConvAutoencoderGenotype(Genotype):
         # Add decoder layer for asymmetric autoencoder or add output layer for symmetric autoencoder
         if shape == "symmetric" or coding_sequence[0].attrs["output"] == "transpose":
             # Define output deconvolutional layer
-            output = Conv2DTranspose(filters=out_channels, kernel_size=out_kernel_size, name="output")(x)
+            if shape == "symmetric":
+                strides = (1, 1)
+            else:
+                strides = (2 ** num_nodes, 2 ** num_nodes)
+
+            output = Conv2DTranspose(filters=out_channels, 
+                                     kernel_size=out_kernel_size, 
+                                     strides=strides, 
+                                     name="output")(x)
         # Add decoder for flatten + dense asymmetric autoencoder
         elif coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
             # Add maxpooling to reduce number of parameters when for flatten + dense 
-            x = MaxPooling2D(pool_size=(pool_size, pool_size))(x)
             x = Flatten()(x)
-            x = Dense(128)(x)
             x = Dense(out_dims ** 2 * out_channels)(x)
             output = Reshape(input_shape)(x)
 
@@ -102,13 +109,14 @@ class ConvAutoencoderGenotype(Genotype):
 
         print(model.summary())
 
-        try:
-            model = multi_gpu_model(model, gpus=config_values["ml"]["num_gpus"])
-            print("Training using multiple GPUs")
-        except:
-            print("Training using CPU or single GPU")
+        if int(config["evolutionary_search"]["num_children"]) == 1:
+            try:
+                model = multi_gpu_model(model, gpus=config_values["ml"]["num_gpus"])
+                print("Training using multiple GPUs")
+            except:
+                print("Training using CPU or single GPU")
 
-        model.compile(optimizer="adam",
-                loss='mse')
-        
+            model.compile(optimizer="adam",
+                    loss='mse')
+            
         return model
