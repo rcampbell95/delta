@@ -3,10 +3,10 @@ from genetics import Gene, Genotype
 
 def define_gene(self):
     self.params = {"filter_size": (16, 32, 64, 128),
-                    "kernel_size": (1, 2, 3, 4, 5),
+                    "kernel_size": (1, 3, 5, 7),
                     "skip": (True, False),
                     "regularization": ("spatial_dropout", "dropout"),
-                    "dropout_rate": (0.1, 0.3, 0.5),
+                    "dropout_rate": (0.0, 0.1, 0.3, 0.5),
                     "activation": ("selu", "relu", "tanh"),
                     "output": ("dense", "transpose") }
 
