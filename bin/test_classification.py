@@ -61,7 +61,7 @@ class Classifier(multiprocessing.Process):
         self.run_info = run_info
 
         self.strategy = self.run_info["strategy"]
-        self.run_info["steps_per_epoch"] = 1
+        self.run_info["steps_per_epoch"] = 100
         #self.config_values = config_values
         #if model_template:
         #    try:
@@ -83,7 +83,7 @@ class Classifier(multiprocessing.Process):
             model_file_lock.release()
 
             for idx, layer in enumerate(self.model.layers):
-                if isinstance(layer, Conv2DTranspose) or isinstance(layer, MaxPooling2D):
+                if isinstance(layer, Conv2DTranspose) or isinstance(layer, Flatten):
                     out_idx = idx - 2
                     break
 
@@ -91,7 +91,7 @@ class Classifier(multiprocessing.Process):
                 layer.trainable = trainable 
 
             x = Flatten(name="flatten_out")(self.model.layers[out_idx].output)
-            x = Dense(2, activation="softmax", name="dense_out")(x)
+            x = Dense(1, activation="sigmoid", name="dense_out")(x)
             
             
             model = Model(inputs=self.model.inputs, outputs=x)
@@ -190,8 +190,8 @@ class Classifier(multiprocessing.Process):
         callbacks = self.__get_callbacks(model_folder)
 
         self.model.compile(optimizer='adam',
-                loss='sparse_categorical_crossentropy',
-                metrics=['sparse_categorical_accuracy'])
+                loss='binary_crossentropy',
+                metrics=['accuracy'])
 
         history = self.model.fit(x = trainset,
                                  epochs=epochs, 
@@ -235,7 +235,8 @@ class Classifier(multiprocessing.Process):
                 mlflow.log_param("encoder_run_id", self.run_info["encoder_run_id"])
                 mlflow.log_param("train_setup", TRAINING_STRATEGIES[self.strategy])
                 mlflow.log_param("steps_per_epoch", self.run_info["steps_per_epoch"])
-                
+                #mlflow.log_param("shape", self.run_info["shape"])
+
                 config_file_lock.release()
 
                 trainset, valset = self.load_data()
@@ -269,7 +270,7 @@ run_info = pd.read_csv(options.run_csv)
 path = options.data_folder
 
 mlflow.set_tracking_uri("file:./mlruns")
-mlflow.set_experiment("log_batch_classification")
+mlflow.set_experiment("test_classificaton_undercomplete")
 
 run_id_key = "Run ID"
 
@@ -287,7 +288,10 @@ threadLimiter = multiprocessing.BoundedSemaphore(POOL_SIZE)
 
 procs = []
 for run_id in run_info[run_id_key]:
+    #run_row = run_info[run_info[run_id_key] == run_id]
+
     for strategy in TRAINING_STRATEGIES:
+
         print("\nTraining {}\n".format(run_id))
         
         try:
@@ -302,7 +306,8 @@ for run_id in run_info[run_id_key]:
         run_info = {
             "model_path" : model_path,
             "strategy" : strategy,
-            "encoder_run_id" : run_id
+            "encoder_run_id" : run_id,
+            #"shape" : run_row["shape"].item()
         }
 
 

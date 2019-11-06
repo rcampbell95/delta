@@ -102,6 +102,7 @@ class ConvAutoencoderGenotype(Genotype):
         elif coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
             # Add maxpooling to reduce number of parameters when for flatten + dense 
             x = Flatten()(x)
+            x = Dense(128)(x)
             x = Dense(out_dims ** 2 * out_channels)(x)
             output = Reshape(input_shape)(x)
 
@@ -109,7 +110,7 @@ class ConvAutoencoderGenotype(Genotype):
 
         print(model.summary())
 
-        if int(config["evolutionary_search"]["num_children"]) == 1:
+        if int(config_values["evolutionary_search"]["num_children"]) == 1:
             try:
                 model = multi_gpu_model(model, gpus=config_values["ml"]["num_gpus"])
                 print("Training using multiple GPUs")
