@@ -25,6 +25,9 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.datasets import cifar10
 import tensorflow as tf
 
+import numpy as np
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
+
 import multiprocessing
 import threading
 
@@ -37,6 +40,7 @@ def log_params(config_values):
     for category in config_values.keys():
         for param in config_values[category].keys():
             mlflow.log_param(param, config_values[category][param])
+ 
     
 class MetricHistory(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
@@ -61,15 +65,8 @@ class Classifier(multiprocessing.Process):
         self.run_info = run_info
 
         self.strategy = self.run_info["strategy"]
-        self.run_info["steps_per_epoch"] = 100
-        #self.config_values = config_values
-        #if model_template:
-        #    try:
-        #        self.model = clone_model(model_template.model)
-        #        #print(self.model_path)
-        #    except:
-        #        print("Model clone cannot be instatiated.")
-        #else:
+        self.run_info["steps_per_epoch"] = 1
+
         self.model_path = self.run_info["model_path"]
         assert(self.model_path is not None)
 
@@ -101,7 +98,7 @@ class Classifier(multiprocessing.Process):
             else:
                 self.model = model
             #self.model = Model(inputs=self.model.inputs, outputs=x)
-            #print(self.model.summary()) 
+            print(self.model.summary()) 
 
     def load_data(self):
         image_type = self.config_values["input_dataset"]["image_type"]
@@ -127,7 +124,6 @@ class Classifier(multiprocessing.Process):
             y_test = to_categorical(y_test)
 
         elif image_type == "landsat":
-            #read_lock.acquire()
             train_ds = self.__assemble_dataset()
             val_directory = self.config_values['input_dataset']['val_directory']
             train_directory = self.config_values['input_dataset']['data_directory']
@@ -135,11 +131,11 @@ class Classifier(multiprocessing.Process):
             self.config_values['input_dataset']['data_directory'] = val_directory
             
             val_ds = self.__assemble_dataset()
-            #read_lock.release()
             self.config_values['input_dataset']['data_directory'] = train_directory
 
             return train_ds, val_ds
-            
+        
+        # Add svhn and cifar support
         #x_train, x_test = normalize(x_train), normalize(x_test)
         return (x_train, y_train) , (x_test, y_test)
 
@@ -168,16 +164,13 @@ class Classifier(multiprocessing.Process):
 
     def __get_callbacks(self, model_folder):
         callbacks = []
-        #callbacks.append(EarlyStopping(monitor='val_loss', mode='min', 
-        #                               verbose=1, patience=epochs // 10,
-        #                               restore_best_weights=True))
+
         self.checkpoint_path = model_folder + "/" + TRAINING_STRATEGIES[self.strategy] + '_model.h5'
         callbacks.append(ReloadBestModel(model_folder))
         callbacks.append(ModelCheckpoint(self.checkpoint_path, monitor='val_loss', 
                                     mode='min', save_best_only=True, verbose=0))
     
-        callbacks.append(MetricHistory())
-    
+        callbacks.append(MetricHistory())    
         return callbacks
 
     def train_model(self, trainset, valset, steps_per_epoch):
@@ -191,7 +184,9 @@ class Classifier(multiprocessing.Process):
 
         self.model.compile(optimizer='adam',
                 loss='binary_crossentropy',
-                metrics=['accuracy'])
+                metrics=['binary_accuracy',
+                         tf.keras.metrics.Precision(),
+                         tf.keras.metrics.Recall()])
 
         history = self.model.fit(x = trainset,
                                  epochs=epochs, 
@@ -227,11 +222,9 @@ class Classifier(multiprocessing.Process):
             config.load_config_file(options.config_file)
             self.config_values = config.get_config()
 
-            #print(self.config_values)
             
             with mlflow.start_run():
                 log_params(self.config_values)
-                #mlflow.log_params(self.config_values)
                 mlflow.log_param("encoder_run_id", self.run_info["encoder_run_id"])
                 mlflow.log_param("train_setup", TRAINING_STRATEGIES[self.strategy])
                 mlflow.log_param("steps_per_epoch", self.run_info["steps_per_epoch"])
@@ -270,7 +263,7 @@ run_info = pd.read_csv(options.run_csv)
 path = options.data_folder
 
 mlflow.set_tracking_uri("file:./mlruns")
-mlflow.set_experiment("test_classificaton_undercomplete")
+mlflow.set_experiment("log_batch_overcomplete")
 
 run_id_key = "Run ID"
 
@@ -313,86 +306,3 @@ for run_id in run_info[run_id_key]:
 
         procs.append(Classifier(run_info))
         procs[-1].start()
-
-        #for thread in threads:
-        #threads[-1].join()
-
-        ### Serial
-        # model = Classifier(model_path, strategy)
-        # model.run()
-
-        # run_row = run_info[run_info[run_id_key] == run_id]
-        # print("\n\nTraining {}\n".format(run_id))
-
-        
-        # try:
-        #     model_path = path + run_id + "/artifacts/model.h5"
-        #     assert(os.path.exists(model_path))
-        # except:
-        #     model_path = path + run_id + "/artifacts/autoencoder_model.h5"
-
-        # # Load and preprocess data data
-        # #     
-        # ####################
-        # # Train and test model with locked features
-        # ####################
-        # mlflow.start_run()
-        # log_params(config_values)
-        # mlflow.log_param(run_id_key, run_id)
-        # mlflow.log_param("train_setup", "pretrain_train_dense")
-        
-        # model = Classifier(config_values, model_path)
-        # trainset, valset = model.load_data()
-
-        # model.build_model(trainable=False)
-
-        # model.train_model(trainset, valset)
-
-        # #model.test_model(x_test, y_test)
-
-        # tf.keras.backend.clear_session()
-        # mlflow.end_run()
-
-        # #################
-        # # Train and test end to end with pretrained featuress
-        # #################
-
-        # mlflow.start_run()
-        # log_params(config_values)
-        # mlflow.log_param("run_id", run_id)
-        # mlflow.log_param("train_setup", "pretrain_train_all")    
-        
-        # model = Classifier(model_path)
-        # trainset, valset = model.load_data()
-
-        # model.build_model(trainable=True)
-
-        # print("\n\nTrain model with extracted encoder\n\n")
-        
-        # model.train_model(trainset, valset)
-
-        # #model.test_model(x_test, y_test)
-
-        # tf.keras.backend.clear_session()
-        # mlflow.end_run()
-
-        # #################
-        # # Train model end-to-end without pretrained features
-        # #################    
-
-        # print("\n\nTrain end to end model\n\n")
-        # mlflow.start_run()
-        # log_params(config_values)
-        # mlflow.log_param(run_id_key, run_id)
-        # mlflow.log_param("train_setup", "no_pretrain_train_all")
-            
-        # baseline = Classifier(model_template=model)
-        # trainset, valset = model.load_data()   
-
-
-        # baseline.train_model(trainset, valset)    
-
-        # #baseline.test_model(x_test, y_test)
-
-        # tf.keras.backend.clear_session()
-        # mlflow.end_run()
