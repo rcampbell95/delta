@@ -39,8 +39,8 @@ config.load_config_file(options.config_file)
 config_values = config.get_config()
 
 # TODO: Read these from file!
-height = 520
-width = 1077
+height = 1062
+width = 780
 tile_size = 256 # TODO: Where to get this?
 num_tiles_x = int(math.floor(width/tile_size))
 num_tiles_y = int(math.floor(height/tile_size))
@@ -52,7 +52,6 @@ def make_evaluate_ds():
     ids = imagery_dataset.ImageryDatasetTFRecord(config_values)
     ds = ids.dataset(filter_zero=False, shuffle=False)
     ds = ds.batch(200)
-    #ds = ds.repeat(None)
 
     return ds
     
@@ -63,9 +62,11 @@ def make_classify_ds():
     ds = ds.batch(200)
     return ds
 
+tf.set_random_seed(1)
+
 model = keras.models.load_model(options.model_path)
+
 model.summary()
-print(model.layers[-1].activation)
 estimator = keras.estimator.model_to_estimator(model)
 
 print('Classifying the image...')
@@ -75,14 +76,10 @@ output_data = []
 flood_count = 0
 no_flood_count = 0
 
-#metrics = estimator.evaluate(input_fn=make_evaluate_ds)
-
-#print(metrics)
+# TODO -- Add precision and recall for test set
 
 for pred in estimator.predict(input_fn=make_classify_ds):
-    #print(pred)
     value = pred['dense_out']
-    #print(value)
     
     value = 1 if value.item() > 0.5 else 0
     #value = np.where(value == max(value))[0]
@@ -128,9 +125,4 @@ plt.subplot(1,1,1)
 plt.imshow(pic)
 plt.savefig(os.path.join(config_values["ml"]["output_folder"], "out.png"))
 
-#jpeg = tf.image.encode_jpeg(pic, quality=100, format='grayscale')
-#output_path = '/home/smcmich1/repo/delta/output.jpg'
-#writer = tf.write_file(output_path, jpeg)
-#sess.run(writer)
-
-print('sc_process_test finished!')
+print('predict_image finished!')
