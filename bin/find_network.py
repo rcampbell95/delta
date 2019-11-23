@@ -117,8 +117,7 @@ if __name__ == "__main__":
     #``    print(usage)
         #return -1
 
-    config_values = config.load_config_file(options.config_file,
-                                             options.data_folder, options.image_type)
+    config_values = config.load_config_file(options.config_file)
 
     batch_size = config['ml']['batch_size']
     num_epochs = config_values["ml"]["num_epochs"]    
