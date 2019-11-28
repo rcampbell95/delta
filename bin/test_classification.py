@@ -10,6 +10,8 @@ import argparse
 import sys
 import os
 
+import datetime
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from delta.imagery import imagery_dataset
@@ -47,8 +49,11 @@ class MetricHistory(tf.keras.callbacks.Callback):
         import mlflow
 
         for metric in self.model.metrics_names:
-            mlflow.log_metric(metric, logs.get(metric), step=epoch)
-            mlflow.log_metric("val_" + metric, logs.get("val_" + metric), step=epoch)
+            train_metric = float(logs.get(metric))
+            val_metric = float(logs.get("val_" + metric))
+
+            mlflow.log_metric(metric, train_metric, step=epoch)
+            mlflow.log_metric("val_" + metric, val_metric, step=epoch)
 
 class ReloadBestModel(tf.keras.callbacks.Callback):
     def __init__(self, model_folder):
@@ -65,7 +70,7 @@ class Classifier(multiprocessing.Process):
         self.run_info = run_info
 
         self.strategy = self.run_info["strategy"]
-        self.run_info["steps_per_epoch"] = 1
+        self.run_info["steps_per_epoch"] = 10
 
         self.model_path = self.run_info["model_path"]
         assert(self.model_path is not None)
@@ -165,6 +170,10 @@ class Classifier(multiprocessing.Process):
     def __get_callbacks(self, model_folder):
         callbacks = []
 
+        #log_dir="./logs/1/"+ TRAINING_STRATEGIES[self.strategy]
+        #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+        #callbacks.append(tensorboard_callback)
+
         self.checkpoint_path = model_folder + "/" + TRAINING_STRATEGIES[self.strategy] + '_model.h5'
         callbacks.append(ReloadBestModel(model_folder))
         callbacks.append(ModelCheckpoint(self.checkpoint_path, monitor='val_loss', 
@@ -196,7 +205,7 @@ class Classifier(multiprocessing.Process):
                                  shuffle=True, 
                                  validation_steps = math.ceil(steps_per_epoch * (1 - validation_split)),
                                  callbacks=callbacks,
-                                 verbose=0)
+                                 verbose=1)
 
         mlflow.log_artifact(self.checkpoint_path)
             
@@ -236,15 +245,13 @@ class Classifier(multiprocessing.Process):
 
                 trainable = False if self.strategy == 0 else True
                 self.build_model(trainable=trainable) 
-                
+            
                 self.train_model(trainset, valset, self.run_info["steps_per_epoch"])
 
                 # TODO -- add artifact logging
 
                 tf.keras.backend.clear_session()
                 print("Process {} completed".format(ident))
-
-        
 
 usage  = "usage: test_classification.py [options]"
 parser = argparse.ArgumentParser(usage=usage)
@@ -257,13 +264,11 @@ parser.add_argument("--data-folder", dest="data_folder", default=None,
 parser.add_argument("--run-csv", dest="run_csv", default=None,
                     help="Downloaded csv from mlflow ui containing run information.")
 
+
 options = parser.parse_args()
 
 run_info = pd.read_csv(options.run_csv)
 path = options.data_folder
-
-mlflow.set_tracking_uri("file:./mlruns")
-mlflow.set_experiment("log_batch_overcomplete")
 
 run_id_key = "Run ID"
 
@@ -279,6 +284,18 @@ model_file_lock = multiprocessing.Lock()
 config_file_lock = multiprocessing.Lock()
 threadLimiter = multiprocessing.BoundedSemaphore(POOL_SIZE)
 
+config.load_config_file(options.config_file)
+self.config_values = config.get_config()
+
+TRACKING_URI = "mysql+pymysql://{}:{}@{}:{}/{}".format(config_values["backend_store"]["user"], 
+                                                       config_values["backend_store"]["password"], 
+                                                       config_values["backend_store"]["endpoint"],
+                                                       config_values["backend_store"]["port"],
+                                                       config_values["backend_store"]["tablename"])
+
+mlflow.set_tracking_uri(TRACKING_URI)
+mlflow.set_experiment(config_values["ml"]["experiment"])
+
 procs = []
 for run_id in run_info[run_id_key]:
     #run_row = run_info[run_info[run_id_key] == run_id]
@@ -293,9 +310,9 @@ for run_id in run_info[run_id_key]:
         except:
             model_path = path + run_id + "/artifacts/autoencoder_model.h5"
 
-        # TODO -- Make  thread pool class?
-        # TODO -- Block main process all worker processes have been created
-        # Uses three threads, one per model type
+        # TODO -- Make  process pool class?
+        # TODO -- Block main process until all worker processes have been created
+        # Uses three processes, one per model type
         run_info = {
             "model_path" : model_path,
             "strategy" : strategy,
