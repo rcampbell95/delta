@@ -15,6 +15,7 @@ import datetime
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from delta.imagery import imagery_dataset
+from delta import config
 
 
 from tensorflow.keras.utils import to_categorical
@@ -63,7 +64,6 @@ class ReloadBestModel(tf.keras.callbacks.Callback):
         #print("Loading best model saved by checkpoint...")
         self.model = keras.models.load_model(self.model_folder + "/model.h5")
 
-
 class Classifier(multiprocessing.Process):
     def __init__(self, run_info):
         multiprocessing.Process.__init__(self)
@@ -76,7 +76,7 @@ class Classifier(multiprocessing.Process):
         assert(self.model_path is not None)
 
 
-    def build_model(self, trainable=True):
+    def build_model(self, trainable):
         if hasattr(self, "model"):
             print("Model already built and loaded in memory. Aborting operation")
         else:
@@ -92,13 +92,13 @@ class Classifier(multiprocessing.Process):
             for layer in self.model.layers:
                 layer.trainable = trainable 
 
-            x = Flatten(name="flatten_out")(self.model.layers[out_idx].output)
+            x = Flatten(name="flatten")(self.model.layers[out_idx].output)
             x = Dense(1, activation="sigmoid", name="dense_out")(x)
             
             
             model = Model(inputs=self.model.inputs, outputs=x)
 
-            if self.strategy == 2:
+            if self.strategy == 2 or self.strategy == 3:
                 self.model = clone_model(model)
             else:
                 self.model = model
@@ -170,8 +170,10 @@ class Classifier(multiprocessing.Process):
     def __get_callbacks(self, model_folder):
         callbacks = []
 
-        #log_dir="./logs/1/"+ TRAINING_STRATEGIES[self.strategy]
+        #log_dir="./logs/random_feature_extractor/{}/{}".format(self.run_info["encoder_run_id"], TRAINING_STRATEGIES[self.strategy])
         #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+
         #callbacks.append(tensorboard_callback)
 
         self.checkpoint_path = model_folder + "/" + TRAINING_STRATEGIES[self.strategy] + '_model.h5'
@@ -188,10 +190,13 @@ class Classifier(multiprocessing.Process):
         validation_split = .8
         model_folder = self.config_values["ml"]["model_folder"]
         epochs = self.config_values["ml"]["num_epochs"]
+        base_lr = 0.001
 
         callbacks = self.__get_callbacks(model_folder)
 
-        self.model.compile(optimizer='adam',
+        optimizer = keras.optimizers.Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, amsgrad=False)
+
+        self.model.compile(optimizer=optimizer,
                 loss='binary_crossentropy',
                 metrics=['binary_accuracy',
                          tf.keras.metrics.Precision(),
@@ -206,6 +211,33 @@ class Classifier(multiprocessing.Process):
                                  validation_steps = math.ceil(steps_per_epoch * (1 - validation_split)),
                                  callbacks=callbacks,
                                  verbose=1)
+
+        if self.strategy == 0:
+            # Fine tune model
+            self.model.trainable = True 
+            fine_tune_epochs = 10
+
+            optimizer = keras.optimizers.Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, amsgrad=False)
+
+
+            self.model.compile(optimizer=optimizer,
+                               loss='binary_crossentropy',
+                               metrics=['binary_accuracy',
+                               tf.keras.metrics.Precision(),
+                               tf.keras.metrics.Recall()])
+
+            self.model.fit(x = trainset,
+                           epochs = epochs + fine_tune_epochs,
+                           initial_epoch = epochs,
+                           batch_size = None,
+                           steps_per_epoch = math.ceil(steps_per_epoch * validation_split),
+                           validation_data = valset,
+                           shuffle = True,
+                           validation_steps = math.ceil(steps_per_epoch * (1 - validation_split)),
+                           callbacks=callbacks,
+                           verbose=1)
+
+            self.model.save(self.checkpoint_path)
 
         mlflow.log_artifact(self.checkpoint_path)
             
@@ -243,7 +275,11 @@ class Classifier(multiprocessing.Process):
 
                 trainset, valset = self.load_data()
 
-                trainable = False if self.strategy == 0 else True
+                if self.strategy == 0 or self.strategy == 3:
+                    trainable = False
+                else:
+                    trainable = True
+
                 self.build_model(trainable=trainable) 
             
                 self.train_model(trainset, valset, self.run_info["steps_per_epoch"])
@@ -275,7 +311,8 @@ run_id_key = "Run ID"
 TRAINING_STRATEGIES = {
     0: "pretrain_train_dense",
     1: "pretrain_train_all", 
-    2: "no_pretrain_train_all"
+    2: "no_pretrain_train_all",
+    3: "no_pretrain_train_dense"
 }
 
 POOL_SIZE = 3
@@ -285,7 +322,7 @@ config_file_lock = multiprocessing.Lock()
 threadLimiter = multiprocessing.BoundedSemaphore(POOL_SIZE)
 
 config.load_config_file(options.config_file)
-self.config_values = config.get_config()
+config_values = config.get_config()
 
 TRACKING_URI = "mysql+pymysql://{}:{}@{}:{}/{}".format(config_values["backend_store"]["user"], 
                                                        config_values["backend_store"]["password"], 
