@@ -77,7 +77,13 @@ def train(model_fn, dataset, training_spec):
     '''
     Trains the specified model given the images, corresponding labels, and training specification.
     '''
-    with _strategy(_devices(config.gpus())).scope():
+
+    if training_spec.devices is None:
+        devs = _devices(config.gpus())
+    else:
+        devs = training_spec.devices
+
+    with __strategy(devs).scope():
         model = model_fn()
         assert isinstance(model, tf.keras.models.Model),\
                "Model is not a Tensorflow Keras model"
