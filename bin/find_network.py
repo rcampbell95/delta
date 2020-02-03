@@ -3,31 +3,34 @@ import numpy as np
 from individual import Individual
 import mlflow
 import os
+import sys
 
-def log_artifacts(config_values, fittest_index):
-    #mlflow.log_artifact("./model.png")
-    output_folder = os.path.join(config_values["ml"]["output_folder"], str(fittest_index))
-    model_name = config_values["ml"]["model_dest_name"]
+from delta.config import config
 
-    assert(os.path.exists(os.path.join(output_folder, model_name)))
-    assert(os.path.exists(os.path.join(output_folder, "modelsummary.txt")))
-    assert(os.path.exists(os.path.join(output_folder, "genotype.csv")))
+# def log_artifacts(config_values, fittest_index):
+#     #mlflow.log_artifact("./model.png")
+#     output_folder = os.path.join(config.output_folder(), str(fittest_index))
+#     model_name = config_values["ml"]["model_dest_name"]
 
-    mlflow.log_artifact(os.path.join(output_folder, model_name))
-    mlflow.log_artifact(os.path.join(output_folder, "modelsummary.txt"))
-    mlflow.log_artifact(os.path.join(output_folder, "genotype.csv"))
+#     assert(os.path.exists(os.path.join(output_folder, model_name)))
+#     assert(os.path.exists(os.path.join(output_folder, "modelsummary.txt")))
+#     assert(os.path.exists(os.path.join(output_folder, "genotype.csv")))
+
+#     mlflow.log_artifact(os.path.join(output_folder, model_name))
+#     mlflow.log_artifact(os.path.join(output_folder, "modelsummary.txt"))
+#     mlflow.log_artifact(os.path.join(output_folder, "genotype.csv"))
 
 
 def find_network(config_values):
-    log = True if config_values["evolutionary_search"]["log"].lower() == "true" else False 
+    #log = True if config_values["evolutionary_search"]["log"].lower() == "true" else False 
 
-    if log:
-        #mlflow.set_tracking_uri("file:./mlruns")
-        mlflow.start_run()
+    #if log:
+    #    #mlflow.set_tracking_uri("file:./mlruns")
+    #    mlflow.start_run()
 
-        for category in config_values.keys():
-            for param in config_values[category].keys():
-                mlflow.log_param(param, config_values[category][param])
+    #    for category in config_values.keys():
+    #        for param in config_values[category].keys():
+    #            mlflow.log_param(param, config_values[category][param])
 
 
     ###
@@ -42,16 +45,18 @@ def find_network(config_values):
     best_history = Individual.histories()[0]
     metric_best = min(best_history[config_values["evolutionary_search"]["metric"]])
 
-    if log:
-        log_artifacts(config_values, 0)
-        # Log parent as baseline for best model
-        for metric in best_history.keys():
-            mlflow.log_metric(metric, min(best_history[metric]), step=0)
+    #if log:
+    #    log_artifacts(config_values, 0)
+    #    # Log parent as baseline for best model
+    #    for metric in best_history.keys():
+    #        mlflow.log_metric(metric, min(best_history[metric]), step=0)
 
     for generation in range(1, int(config_values["evolutionary_search"]["generations"]) + 1):
         print("\n\n\nGeneration ", generation)
         
         children = [parent.generate_child(i) for i in range(int(config_values["evolutionary_search"]["num_children"]))]
+
+        print(len(children))
 
         for child in children:
             child.start()            
@@ -69,16 +74,16 @@ def find_network(config_values):
 
             print("Child {} is more fit than parent. Parent for next generation will be child {}".format(idx_fittest + 1, idx_fittest + 1))
 
-            if log:
-                best_history = child_histories[idx_fittest]
-                for metric in child_histories[idx_fittest].keys():
-                    mlflow.log_metric(metric, min(child_histories[idx_fittest][metric]), step=generation)
-                    print("Logged {} to mlflow".format(metric))
-                try:
-                    log_artifacts(config_values, idx_fittest)
-                    print("Logged architecture")
-                except:
-                    print("Artifact can't be logged!")
+            #if log:
+            #    best_history = child_histories[idx_fittest]
+            #    for metric in child_histories[idx_fittest].keys():
+            #        mlflow.log_metric(metric, min(child_histories[idx_fittest][metric]), step=generation)
+            #        print("Logged {} to mlflow".format(metric))
+            #    try:
+            #        log_artifacts(config_values, idx_fittest)
+            #        print("Logged architecture")
+            #    except:
+            #        print("Artifact can't be logged!")
         else:
             for metric in best_history.keys():
                 mlflow.log_metric(metric, min(best_history[metric]), step=generation)
@@ -86,57 +91,29 @@ def find_network(config_values):
             parent.self_mutate()
 
 
-    if log:
-        mlflow.end_run()
+    #if log:
+    #    mlflow.end_run()
 
 if __name__ == "__main__":
-    import os
-    import sys
-    import argparse
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    ###
+    # Test find_network()
+    ###
+    evolution_config = {
+        "evolutionary_search" : {
+            "grid_height": 10,
+            "grid_width": 1,
+            "level_back": 1,
+            "num_children": 1,
+            "generations": 100,
+            "r": .1,
+            "metric": "val_loss",
+            "log": True,
+            "shape": "asymmetric"
+        },
+        "ml": {
+            "channels": 7
+        }
+    }
 
-    from delta.imagery import imagery_dataset 
-    from delta import config 
+    find_network(evolution_config)
 
-    usage  = "usage: train_autoencoder [options]"
-    parser = argparse.ArgumentParser(usage=usage)
-
-    parser = argparse.ArgumentParser(usage='train_autoencoder.py [options]')
-
-    parser.add_argument("--config-file", dest="config_file", default=None,
-                        help="Dataset configuration file.")
-    parser.add_argument("--data-folder", dest="data_folder", default=None,
-                        help="Specify data folder instead of supplying config file.")
-    parser.add_argument("--image-type", dest="image_type", default=None,
-                        help="Specify image type along with the data folder."
-                        +"(landsat, landsat-simple, worldview, or rgba)")
-
-    #try:
-    options = parser.parse_args()
-    #except argparse.ArgumentError:
-    #``    print(usage)
-        #return -1
-
-    config_values = config.load_config_file(options.config_file)
-
-    batch_size = config['ml']['batch_size']
-    num_epochs = config_values["ml"]["num_epochs"]    
-
-    print('loading data from ' + config_values['input_dataset']['data_directory'])
-    aeds_train = imagery_dataset.AutoencoderDataset(config_values)
-    train_ds = aeds_train.dataset()
-
-    train_ds = train_ds.repeat(num_epochs).batch(batch_size)
-
-    train_directory = config_values['input_dataset']['data_directory']
-    
-    print('loading validation data from ' + config_values['input_dataset']['val_directory'])
-    config_values['input_dataset']['data_directory'] = config_values['input_dataset']['val_directory']
-    aeds_val = imagery_dataset.AutoencoderDataset(config_values)
-    val_ds = aeds_val.dataset()
-
-    val_ds = val_ds.repeat(num_epochs).batch(batch_size)
-
-    config_values['input_dataset']['data_directory'] = train_directory
- 
-    find_network(config_values, train_ds, val_ds)
