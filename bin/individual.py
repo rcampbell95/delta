@@ -1,15 +1,13 @@
-from conv_autoencoder import ConvAutoencoderGenotype
-from tensorflow.keras.callbacks import Callback
-import tensorflow as tf
-import os 
 import multiprocessing
-import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import tensorflow as tf
 
 from delta.config import config
 from delta.imagery import imagery_dataset
 from delta.ml.train import train
+
+from conv_autoencoder import ConvAutoencoderGenotype
+from gpu_manager import GPU_Manager
 
 def assemble_dataset():
 
@@ -31,7 +29,7 @@ class Individual(multiprocessing.Process):
         self.child_index = child_index
         self.config_values = config_values
 
-        if new_genotype == False:
+        if new_genotype is False:
             self.genotype = ConvAutoencoderGenotype(config_values)
         else:
             self.genotype = new_genotype
@@ -50,11 +48,10 @@ class Individual(multiprocessing.Process):
         while cls.fitness_queue.qsize() > 0:
             msg = cls.fitness_queue.get(block=False)
             histories.append(msg[1])
-            
         return histories
 
 
-    def build_model(self):        
+    def build_model(self):
         chunk_size = config.chunk_size()
         channels = int(self.config_values["ml"]["channels"])
 
@@ -81,21 +78,20 @@ class Individual(multiprocessing.Process):
         #    else:
         #        gene_attrs["Connection id"] = [gene.conn]
 
-        #pd.DataFrame(gene_attrs).to_csv(os.path.join(self.config["ml"]["output_folder"], str(self.child_index), "genotype.csv"))
+        #pd.DataFrame(gene_attrs).to_csv(os.path.join(self.config["ml"]["output_folder"], \
+        # str(self.child_index), "genotype.csv"))
 
     def run(self):
         # TODO Set up context with GPU
-        from gpu_manager import GPU_Manager
-
         device_manager = GPU_Manager()
         device = device_manager.request_device()
 
-        with tf.Graph().as_default() as g:
+        with tf.Graph().as_default():
             with tf.device(device):
                 train_spec = config.training()
                 ids = assemble_dataset()
 
-                model, history = train(self.build_model, ids, train_spec)
+                _, history = train(self.build_model, ids, train_spec)
 
                 msg = (self.child_index, history.history)
 

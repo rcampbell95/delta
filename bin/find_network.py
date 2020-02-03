@@ -1,11 +1,5 @@
-import tensorflow
-import numpy as np
-from individual import Individual
-import mlflow
-import os
-import sys
 
-from delta.config import config
+from individual import Individual
 
 # def log_artifacts(config_values, fittest_index):
 #     #mlflow.log_artifact("./model.png")
@@ -22,7 +16,7 @@ from delta.config import config
 
 
 def find_network(config_values):
-    #log = True if config_values["evolutionary_search"]["log"].lower() == "true" else False 
+    #log = True if config_values["evolutionary_search"]["log"].lower() == "true" else False
 
     #if log:
     #    #mlflow.set_tracking_uri("file:./mlruns")
@@ -34,11 +28,11 @@ def find_network(config_values):
 
 
     ###
-    # Train and evaluate generation 0 
+    # Train and evaluate generation 0
     ###
     print("Generation 0")
     parent = Individual(config_values)
-    
+
     parent.start()
     parent.join()
 
@@ -53,26 +47,26 @@ def find_network(config_values):
 
     for generation in range(1, int(config_values["evolutionary_search"]["generations"]) + 1):
         print("\n\n\nGeneration ", generation)
-        
+
         children = [parent.generate_child(i) for i in range(int(config_values["evolutionary_search"]["num_children"]))]
 
-        print(len(children))
-
         for child in children:
-            child.start()            
+            child.start()
         for child in children:
             child.join()
 
         child_histories = Individual.histories()
-            
-        metric_vals = list(map(lambda history: min(history[config_values["evolutionary_search"]["metric"]]), child_histories))
+
+        metric_vals = list(map(lambda history: \
+                           min(history[config_values["evolutionary_search"]["metric"]]), child_histories))
         idx_fittest = metric_vals.index(min(metric_vals))
 
         if metric_vals[idx_fittest] < metric_best:
             parent = children[idx_fittest]
             metric_best = metric_vals[idx_fittest]
 
-            print("Child {} is more fit than parent. Parent for next generation will be child {}".format(idx_fittest + 1, idx_fittest + 1))
+            print("Child {} is more fit than parent. \
+                   Parent for next generation will be child {}".format(idx_fittest + 1, idx_fittest + 1))
 
             #if log:
             #    best_history = child_histories[idx_fittest]
@@ -85,8 +79,8 @@ def find_network(config_values):
             #    except:
             #        print("Artifact can't be logged!")
         else:
-            for metric in best_history.keys():
-                mlflow.log_metric(metric, min(best_history[metric]), step=generation)
+            #for metric in best_history.keys():
+            #    mlflow.log_metric(metric, min(best_history[metric]), step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 
