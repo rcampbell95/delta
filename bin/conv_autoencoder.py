@@ -1,6 +1,8 @@
-import numpy as np
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
+from tensorflow.keras.layers import Flatten, Dense, Reshape, MaxPooling2D
+from tensorflow.keras.models import Model
+
 from genetics import Gene, Genotype
-import tensorflow as tf
 
 def define_gene(self):
     self.params = {"filter_size": (4, 8, 16, 32, 64, 128),
@@ -13,36 +15,27 @@ def define_gene(self):
 Gene.define_gene = define_gene
 
 class ConvAutoencoderGenotype(Genotype):
-    def __init__(self, config_values, genes=False):
-        super(ConvAutoencoderGenotype, self).__init__(config_values, genes)
-
     def build_model(self, config_values, input_shape):
-        from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, Add, SpatialDropout2D, Dropout
-        from tensorflow.keras.layers import Flatten, Dense, Reshape, MaxPooling2D, UpSampling2D
-        from tensorflow.keras.models import Model
-
-        import tensorflow as tf
-        
         # Define input convolutional layer
         out_channels = int(config_values["ml"]["channels"])
         out_dims = input_shape[1]
-        pool_size = 2
+        #pool_size = 2
         out_kernel_size = 1
         shape = config_values["evolutionary_search"]["shape"]
 
         inputs = Input(shape=input_shape)
         x = inputs
-        
+
         coding_sequence = self.trace_encoder()
         coding_sequence = coding_sequence[1:]
-        num_nodes = len(coding_sequence)
-                
+        #num_nodes = len(coding_sequence)
+
         # Build encoder
-        for idx, gene in enumerate(reversed(coding_sequence)):
+        for gene in reversed(coding_sequence):
             kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
-            x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size, 
-                        padding = "same")(x)
+            x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size,
+                       padding = "same")(x)
 
             #x = MaxPooling2D(pool_size=2)(x)
 
@@ -55,15 +48,15 @@ class ConvAutoencoderGenotype(Genotype):
 
         # Build decoder
         if shape == "symmetric":
-            for idx, gene in enumerate(coding_sequence):
+            for gene in coding_sequence:
                 kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
                 #x = UpSampling2D(size=2)(x)
 
-                x = Conv2D(filters=gene.attrs["filter_size"], 
-                                    kernel_size=kernel_size, 
+                x = Conv2DTranspose(filters=gene.attrs["filter_size"],
+                                    kernel_size=kernel_size,
                                     padding="same")(x)
-                
+
                 x = Activation(gene.attrs["activation"])(x)
 
                 if gene.attrs["regularization"] == "spatial_dropout":
@@ -74,13 +67,13 @@ class ConvAutoencoderGenotype(Genotype):
         # Add decoder layer for asymmetric autoencoder or add output layer for symmetric autoencoder
         if shape == "symmetric" or coding_sequence[0].attrs["output"] == "transpose":
             # Define output deconvolutional layer
-            output = Conv2D(filters=out_channels, 
-                                     kernel_size=1, 
-                                     name="output", 
+            output = Conv2DTranspose(filters=out_channels,
+                                     kernel_size=out_kernel_size,
+                                     name="output",
                                      activation="sigmoid")(x)
         # Add decoder for flatten + dense asymmetric autoencoder
         elif coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
-            # Add maxpooling to reduce number of parameters for flatten + dense 
+            # Add maxpooling to reduce number of parameters for flatten + dense
             x = MaxPooling2D(pool_size=4)(x)
             x = Flatten()(x)
             x = Dense(out_dims ** 2 * out_channels)(x)
@@ -90,5 +83,5 @@ class ConvAutoencoderGenotype(Genotype):
         model = Model(inputs=inputs, outputs=output)
 
         print(model.summary())
-            
+
         return model

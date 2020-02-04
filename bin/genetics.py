@@ -1,7 +1,10 @@
+import copy
+
 import numpy as np
 
+
 class Gene:
-    def __init__(self, node_id, config, gene=None):
+    def __init__(self, node_id, config):
         """
         Parameters:
         -----------
@@ -14,9 +17,13 @@ class Gene:
             None
         """
         self.define_gene()
+        # Set to a default value?
+        self.params = {}
+
         self.node_id = node_id
         self.rows = int(config["evolutionary_search"]["grid_height"])
         self.level_back = int(config["evolutionary_search"]["level_back"])
+        self.conn = -1
 
         self.random_init()
 
@@ -48,31 +55,31 @@ class Gene:
 
         for param in self.params:
             # Select a random value in the set of parameters
-            r_idx = int(np.random.random() * 10)
-            r_idx = r_idx % len(self.params[param])
+            r_idx = np.random.randint(0, len(self.params[param]))
+
             self.attrs[param] = self.params[param][r_idx]
 
-        self.mutate_node_id()   
-        
+        self.mutate_node_id()
+
     def mutate_node_id(self):
         node_id_lower = self.node_id - self.node_id % self.rows - self.level_back * self.rows
         node_id_upper = self.node_id - self.node_id % self.rows - 1
-        
+
         self.conn = np.random.randint(node_id_lower, node_id_upper + 1)
-        
+
     def mutate(self, r):
         """
         Mutate the gene with some probability r
         """
-        prb_mutate = np.random.random()
-        
+        prb_mutate = np.random.standard_normal()
+
         if prb_mutate <= r:
-            for param, value in self.attrs.items():
+            for param, _ in self.attrs.items():
                 # Select a random value in the set of parameters
-                r_idx = int(np.random.random() * 10)
-                r_idx = r_idx % len(self.params[param])
+                r_idx = np.random.randint(0, len(self.params[param]))
+
                 self.attrs[param] = self.params[param][r_idx]
-                
+
             self.mutate_node_id()
 
             return True
@@ -84,12 +91,12 @@ class Genotype:
         self.width = int(config["evolutionary_search"]["grid_width"])
         self.n_genes = self.height * self.width + 1
         self.mutation_rate = float(config["evolutionary_search"]["r"])
-        
+
         if not genes:
             self.genes = [Gene(i, config) for i in range(self.n_genes)]
         else:
             self.genes = genes
-                
+
     def replicate(self, config=None):
         """
         Generates a child by mutating parent
@@ -101,15 +108,13 @@ class Genotype:
         -----------
             child: Child genotype created by mutating parent
         """
-        import copy
-
-        child_genes = [copy.deepcopy(gene) for idx, gene in enumerate(self.genes)]
+        child_genes = [copy.deepcopy(gene) for gene in self.genes]
         child = self.__class__(config, child_genes)
         encoder = child.trace_encoder()
-        
+
         phenotype_mutated = False
         while not phenotype_mutated:
-            for idx, gene in enumerate(child_genes):
+            for gene in child_genes:
                 if gene in encoder and gene.mutate(self.mutation_rate):
                     phenotype_mutated = True
 
@@ -122,10 +127,10 @@ class Genotype:
         hidden_mutated = False
 
         while not hidden_mutated:
-            for idx, gene in enumerate(self.genes):
+            for gene in self.genes:
                 if gene not in encoder:
                     hidden_mutated = gene.mutate(self.mutation_rate)
-    
+
     def trace_encoder(self):
         """
         Trace encoder back from output node
@@ -140,25 +145,23 @@ class Genotype:
         curr_id = self.genes[-1].node_id
         encoder_nodes = []
         #encoder_nodes.append(self.genes[-1])
-        
+
         while curr_id > -1:
             encoder_nodes.append(self.genes[curr_id])
             curr_id = self.genes[curr_id].conn
-            
+
         return encoder_nodes
-    
-    def build_model(self, input_shape, shape):
+
+    def build_model(self, config_values, input_shape):
         """
         Build a model according to the individual's genotype
         Parameters:
         -----------
             input_shape: Input shape of the model to build
-            
+
             shape: Model type to build (asymmetric, symmetric, etc.)
 
         Returns:
         -----------
             model: Compiled model for training
         """
-
-
