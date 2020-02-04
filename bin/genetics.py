@@ -16,9 +16,10 @@ class Gene:
         -----------
             None
         """
+        self.params = {}
         self.define_gene()
         # Set to a default value?
-        self.params = {}
+
 
         self.node_id = node_id
         self.rows = int(config["evolutionary_search"]["grid_height"])
