@@ -3,6 +3,8 @@ import tensorflow as tf
 
 
 class GPU_Manager():
+    #self.instance = None
+
     def __init__(self):
         self.device_queue = multiprocessing.Queue()
 
@@ -17,6 +19,12 @@ class GPU_Manager():
         elif gpu_count > 0:
             for gpu in self.gpus:
                 self.device_queue.put(gpu)
+
+    #def get_manager():
+    #    if self.instance is None:
+    #        self.instance = GPU_Manager()
+    #    return self.instance
+
 
     def request_device(self):
         return self.device_queue.get()
