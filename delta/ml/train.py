@@ -83,7 +83,7 @@ def train(model_fn, dataset, training_spec):
     else:
         devs = training_spec.devices
 
-    with __strategy(devs).scope():
+    with _strategy(devs).scope():
         model = model_fn()
         assert isinstance(model, tf.keras.models.Model),\
                "Model is not a Tensorflow Keras model"
