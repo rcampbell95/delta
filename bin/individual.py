@@ -7,7 +7,6 @@ from delta.imagery import imagery_dataset
 from delta.ml.train import train
 
 from conv_autoencoder import ConvAutoencoderGenotype
-from gpu_manager import GPU_Manager
 
 def assemble_dataset():
 
@@ -22,12 +21,14 @@ def assemble_dataset():
 class Individual(multiprocessing.Process):
     fitness_queue = multiprocessing.Queue(0)
 
-    def __init__(self, config_values, new_genotype=False, child_index=0):
+    def __init__(self, config_values, device_manager, new_genotype=False, child_index=0):
         multiprocessing.Process.__init__(self)
 
         self.history = None
         self.child_index = child_index
         self.config_values = config_values
+        self.device_manager = device_manager
+        self.devices = None
 
         if new_genotype is False:
             self.genotype = ConvAutoencoderGenotype(config_values)
@@ -39,7 +40,7 @@ class Individual(multiprocessing.Process):
 
     def generate_child(self, child_index):
         child_genotype = self.genotype.replicate(self.config_values)
-        child = Individual(self.config_values, child_genotype, child_index)
+        child = Individual(self.config_values, self.device_manager, child_genotype, child_index)
         return child
 
     @classmethod
@@ -47,7 +48,9 @@ class Individual(multiprocessing.Process):
         histories = []
         while cls.fitness_queue.qsize() > 0:
             msg = cls.fitness_queue.get(block=False)
-            histories.append(msg[1])
+            histories.append(msg)
+        histories = sorted(histories, key=lambda history: history[0])
+        histories = list(map(lambda history: history[1], histories))
         return histories
 
 
@@ -81,18 +84,28 @@ class Individual(multiprocessing.Process):
         #pd.DataFrame(gene_attrs).to_csv(os.path.join(self.config["ml"]["output_folder"], \
         # str(self.child_index), "genotype.csv"))
 
+    def _request_device(self):
+        self.devices = self.device_manager.request()
+
+    def _release_device(self):
+        for device in self.devices:
+            self.device_manager.release(device)
+
+
     def run(self):
-        # TODO Set up context with GPU
-        device_manager = GPU_Manager()
-        device = device_manager.request_device()
-
         with tf.Graph().as_default():
-            with tf.device(device):
-                train_spec = config.training()
-                ids = assemble_dataset()
+            self._request_device()
 
-                _, history = train(self.build_model, ids, train_spec)
+            train_spec = config.training()
+            train_spec.devices = self.devices
 
-                msg = (self.child_index, history.history)
+            ids = assemble_dataset()
 
-                self.fitness_queue.put(msg)
+            _, history = train(self.build_model, ids, train_spec)
+
+            self._release_device()
+
+            msg = (self.child_index, history.history)
+            print(msg)
+
+            self.fitness_queue.put(msg)

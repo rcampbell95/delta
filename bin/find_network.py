@@ -1,4 +1,4 @@
-
+from gpu_manager import GPU_Manager
 from individual import Individual
 
 # def log_artifacts(config_values, fittest_index):
@@ -31,7 +31,8 @@ def find_network(config_values):
     # Train and evaluate generation 0
     ###
     print("Generation 0")
-    parent = Individual(config_values)
+    device_manager = GPU_Manager()
+    parent = Individual(config_values, device_manager)
 
     parent.start()
     parent.join()
@@ -98,7 +99,7 @@ if __name__ == "__main__":
             "grid_width": 1,
             "level_back": 1,
             "num_children": 1,
-            "generations": 100,
+            "generations": 20,
             "r": .1,
             "metric": "val_loss",
             "log": True,

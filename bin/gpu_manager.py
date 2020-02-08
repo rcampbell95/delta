@@ -3,31 +3,29 @@ import tensorflow as tf
 
 
 class GPU_Manager():
-    #self.instance = None
-
     def __init__(self):
-        self.device_queue = multiprocessing.Queue()
+        self.cpus = [x.name for x in tf.config.experimental.list_physical_devices('CPU')]
+        self.gpus = [x.name for x in tf.config.experimental.list_physical_devices('GPU')]
+        self._device_queue = multiprocessing.Queue(0)
 
-        self.cpus = [x.name for x in tf.config.experimental.list_logical_devices('CPU')]
-        self.gpus = [x.name for x in tf.config.experimental.list_logical_devices('GPU')]
-
+        print(self.gpus)
         gpu_count = len(self.gpus)
+
+        self.cpus.append(self.cpus[0])
+        self.cpus.append(self.cpus[0])
 
         if gpu_count == 0:
             for cpu in self.cpus:
-                self.device_queue.put(cpu)
+                cpu = cpu.replace("physical_device", "device")
+                self._device_queue.put(cpu)
         elif gpu_count > 0:
             for gpu in self.gpus:
-                self.device_queue.put(gpu)
+                gpu = gpu.replace("physical_device", "device")
+                self._device_queue.put(gpu)
 
-    #def get_manager():
-    #    if self.instance is None:
-    #        self.instance = GPU_Manager()
-    #    return self.instance
+    def request(self):
+        device = self._device_queue.get(block=True)
+        return [device]
 
-
-    def request_device(self):
-        return self.device_queue.get()
-
-    def free_device(self, device_name):
-        self.device_queue.put(device_name)
+    def release(self, device_name):
+        self._device_queue.put(device_name)
