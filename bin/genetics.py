@@ -16,10 +16,7 @@ class Gene:
         -----------
             None
         """
-        self.params = {}
-        self.define_gene()
-        # Set to a default value?
-
+        self.params = self.define_gene()
 
         self.node_id = node_id
         self.rows = int(config["evolutionary_search"]["grid_height"])
@@ -39,8 +36,10 @@ class Gene:
 
         Returns:
         -----------
-            None
+            Dictionary
         """
+        raise NotImplementedError("Implement 'define_gene'")
+
     def random_init(self):
         """
         Initializes the gene to random values in search space.
