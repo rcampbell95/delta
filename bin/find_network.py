@@ -66,8 +66,8 @@ def find_network(config_values):
             parent = children[idx_fittest]
             metric_best = metric_vals[idx_fittest]
 
-            print("Child {} is more fit than parent. \
-                   Parent for next generation will be child {}".format(idx_fittest + 1, idx_fittest + 1))
+            print("Child {} is more fit than parent.".format(idx_fittest + 1))
+            print("Parent for next generation will be child {}".format(idx_fittest + 1))
 
             #if log:
             #    best_history = child_histories[idx_fittest]
@@ -111,4 +111,3 @@ if __name__ == "__main__":
     }
 
     find_network(evolution_config)
-
