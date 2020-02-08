@@ -1,16 +1,20 @@
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
-from tensorflow.keras.layers import Flatten, Dense, Reshape, MaxPooling2D
+from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D
 from tensorflow.keras.models import Model
+
+import sys
 
 from genetics import Gene, Genotype
 
 def define_gene(self):
     self.params = {"filter_size": (4, 8, 16, 32, 64, 128),
-                   "kernel_size": (1, 3, 5, 7),
-                   "regularization": ("spatial_dropout", "dropout"),
-                   "dropout_rate": (0.0, 0.1, 0.3, 0.5),
-                   "activation": ("selu", "relu", "tanh"),
-                   "output": ("dense", "transpose") }
+              "kernel_size": (1, 3, 5, 7),
+              "regularization": ("spatial_dropout", "dropout"),
+              "dropout_rate": (0.0, 0.1, 0.3, 0.5),
+              "activation": ("selu", "relu", "tanh"),
+              "output": ("dense", "transpose")}
+
+    return self.params
 
 Gene.define_gene = define_gene
 
@@ -73,9 +77,7 @@ class ConvAutoencoderGenotype(Genotype):
                                      activation="sigmoid")(x)
         # Add decoder for flatten + dense asymmetric autoencoder
         elif coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
-            # Add maxpooling to reduce number of parameters for flatten + dense
-            x = MaxPooling2D(pool_size=4)(x)
-            x = Flatten()(x)
+            x = GlobalAveragePooling2D()(x)
             x = Dense(out_dims ** 2 * out_channels)(x)
             x = Activation("sigmoid")(x)
             output = Reshape(input_shape)(x)
