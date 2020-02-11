@@ -14,7 +14,7 @@ def assemble_dataset():
     # - The dataset will provide image chunks and corresponding labels.
     tc = config.training()
 
-    ids = imagery_dataset.AutoencoderDataset(config.images(), config.labels(), config.chunk_size(), tc.chunk_stride)
+    ids = imagery_dataset.AutoencoderDataset(config.images(), config.chunk_size(), tc.chunk_stride)
 
     return ids
 
@@ -53,7 +53,6 @@ class Individual(multiprocessing.Process):
         histories = list(map(lambda history: history[1], histories))
         return histories
 
-
     def build_model(self):
         chunk_size = config.chunk_size()
         channels = int(self.config_values["ml"]["channels"])
@@ -91,7 +90,6 @@ class Individual(multiprocessing.Process):
         for device in self.devices:
             self.device_manager.release(device)
 
-
     def run(self):
         with tf.Graph().as_default():
             self._request_device()
@@ -106,6 +104,5 @@ class Individual(multiprocessing.Process):
             self._release_device()
 
             msg = (self.child_index, history.history)
-            print(msg)
 
             self.fitness_queue.put(msg)

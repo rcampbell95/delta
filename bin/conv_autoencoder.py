@@ -2,17 +2,15 @@ from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, 
 from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D
 from tensorflow.keras.models import Model
 
-import sys
-
 from genetics import Gene, Genotype
 
 def define_gene(self):
     self.params = {"filter_size": (4, 8, 16, 32, 64, 128),
-              "kernel_size": (1, 3, 5, 7),
-              "regularization": ("spatial_dropout", "dropout"),
-              "dropout_rate": (0.0, 0.1, 0.3, 0.5),
-              "activation": ("selu", "relu", "tanh"),
-              "output": ("dense", "transpose")}
+                   "kernel_size": (1, 3, 5, 7),
+                   "regularization": ("spatial_dropout", "dropout"),
+                   "dropout_rate": (0.0, 0.1, 0.3, 0.5),
+                   "activation": ("selu", "relu", "tanh"),
+                   "output": ("dense", "transpose")}
 
     return self.params
 
@@ -20,7 +18,6 @@ Gene.define_gene = define_gene
 
 class ConvAutoencoderGenotype(Genotype):
     def build_model(self, config_values, input_shape):
-        # Define input convolutional layer
         out_channels = int(config_values["ml"]["channels"])
         out_dims = input_shape[1]
         #pool_size = 2
@@ -32,7 +29,6 @@ class ConvAutoencoderGenotype(Genotype):
 
         coding_sequence = self.trace_encoder()
         coding_sequence = coding_sequence[1:]
-        #num_nodes = len(coding_sequence)
 
         # Build encoder
         for gene in reversed(coding_sequence):

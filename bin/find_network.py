@@ -98,7 +98,7 @@ if __name__ == "__main__":
             "grid_height": 10,
             "grid_width": 1,
             "level_back": 1,
-            "num_children": 1,
+            "num_children": 2,
             "generations": 20,
             "r": .1,
             "metric": "val_loss",
