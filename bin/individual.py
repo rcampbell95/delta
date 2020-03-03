@@ -1,6 +1,8 @@
 import multiprocessing
+import os
 
 import tensorflow as tf
+import pandas as pd
 
 from delta.config import config
 from delta.imagery import imagery_dataset
@@ -17,6 +19,9 @@ def assemble_dataset():
     ids = imagery_dataset.AutoencoderDataset(config.images(), config.chunk_size(), tc.chunk_stride)
 
     return ids
+
+def psnr(img1, img2):
+    return tf.image.psnr(img1, img2, max_val=1)
 
 class Individual(multiprocessing.Process):
     fitness_queue = multiprocessing.Queue(0)
@@ -35,6 +40,47 @@ class Individual(multiprocessing.Process):
         else:
             self.genotype = new_genotype
 
+    def _log_genetics(self):
+        # Save genetics to csv
+        gene_attrs = {}
+        for gene in reversed(self.genotype.trace_encoder()):
+            for attr, val in gene.attrs.items():
+                if attr in gene_attrs:
+                    gene_attrs[attr].append(val)
+                else:
+                    gene_attrs[attr] = [val]
+            if "Connection id" in gene_attrs:
+                gene_attrs["Connection id"].append(gene.conn)
+            else:
+                gene_attrs["Connection id"] = [gene.conn]
+
+        if os.path.exists(os.path.join(self.config_values["ml"]["output_folder"], str(self.child_index))):
+            output_folder = self.config_values["ml"]["output_folder"]
+
+            csv_filename = os.path.join(output_folder, str(self.child_index), "genotype.csv")
+            pd.DataFrame(gene_attrs).to_csv(csv_filename)
+        else:
+            print("Cannot save file. Temp path does not exist.")
+
+    def _request_device(self):
+        self.devices = self.device_manager.request()
+
+    def _release_device(self):
+        for device in self.devices:
+            self.device_manager.release(device)
+
+    @classmethod
+    def histories(cls):
+        histories = []
+
+        while cls.fitness_queue.qsize() > 0:
+            msg = cls.fitness_queue.get(block=False)
+            histories.append(msg)
+        histories = sorted(histories, key=lambda history: history[0])
+        histories = list(map(lambda history: history[1], histories))
+
+        return histories
+
     def self_mutate(self):
         self.genotype.mutate_hidden_genes()
 
@@ -42,16 +88,6 @@ class Individual(multiprocessing.Process):
         child_genotype = self.genotype.replicate(self.config_values)
         child = Individual(self.config_values, self.device_manager, child_genotype, child_index)
         return child
-
-    @classmethod
-    def histories(cls):
-        histories = []
-        while cls.fitness_queue.qsize() > 0:
-            msg = cls.fitness_queue.get(block=False)
-            histories.append(msg)
-        histories = sorted(histories, key=lambda history: history[0])
-        histories = list(map(lambda history: history[1], histories))
-        return histories
 
     def build_model(self):
         chunk_size = config.chunk_size()
@@ -61,34 +97,9 @@ class Individual(multiprocessing.Process):
 
         model = self.genotype.build_model(self.config_values, input_shape)
 
+        self._log_genetics()
+
         return model
-
-        # Save model summary to text file
-        # TODO -- make child directories if not available
-        # TODO -- best option would be to make temp directory and delete after training
-
-        # Save genetics to csv
-        #gene_attrs = {}
-        #for gene in self.genotype.genes:
-        #    for attr, val in gene.attrs.items():
-        #        if attr in gene_attrs:
-        #            gene_attrs[attr].append(val)
-        #        else:
-        #            gene_attrs[attr] = [val]
-        #    if "Connection id" in gene_attrs:
-        #        gene_attrs["Connection id"].append(gene.conn)
-        #    else:
-        #        gene_attrs["Connection id"] = [gene.conn]
-
-        #pd.DataFrame(gene_attrs).to_csv(os.path.join(self.config["ml"]["output_folder"], \
-        # str(self.child_index), "genotype.csv"))
-
-    def _request_device(self):
-        self.devices = self.device_manager.request()
-
-    def _release_device(self):
-        for device in self.devices:
-            self.device_manager.release(device)
 
     def run(self):
         with tf.Graph().as_default():
@@ -96,10 +107,14 @@ class Individual(multiprocessing.Process):
 
             train_spec = config.training()
             train_spec.devices = self.devices
+            train_spec.metrics = [psnr]
 
             ids = assemble_dataset()
 
-            _, history = train(self.build_model, ids, train_spec)
+            model, history = train(self.build_model, ids, train_spec)
+
+            model_path = os.path.join(self.config_values["ml"]["output_folder"], str(self.child_index), "model.h5")
+            model.save(model_path, save_format="h5")
 
             self._release_device()
 
