@@ -1,8 +1,11 @@
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
-from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D
+from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D
 from tensorflow.keras.models import Model
 
 from genetics import Gene, Genotype
+
+
+from delta.config import config
 
 def define_gene(self):
     self.params = {"filter_size": (4, 8, 16, 32, 64, 128),
@@ -17,12 +20,12 @@ def define_gene(self):
 Gene.define_gene = define_gene
 
 class ConvAutoencoderGenotype(Genotype):
-    def build_model(self, config_values, input_shape):
-        out_channels = int(config_values["ml"]["channels"])
+    def build_model(self, input_shape):
+        out_channels = input_shape[-1]
         out_dims = input_shape[1]
         #pool_size = 2
         out_kernel_size = 1
-        shape = config_values["evolutionary_search"]["shape"]
+        shape = config.model_shape()
 
         inputs = Input(shape=input_shape)
         x = inputs
@@ -37,7 +40,7 @@ class ConvAutoencoderGenotype(Genotype):
             x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size,
                        padding = "same")(x)
 
-            #x = MaxPooling2D(pool_size=2)(x)
+            x = MaxPooling2D(pool_size=2)(x)
 
             x = Activation(gene.attrs["activation"])(x)
 
@@ -51,7 +54,7 @@ class ConvAutoencoderGenotype(Genotype):
             for gene in coding_sequence:
                 kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
-                #x = UpSampling2D(size=2)(x)
+                x = UpSampling2D(size=2)(x)
 
                 x = Conv2DTranspose(filters=gene.attrs["filter_size"],
                                     kernel_size=kernel_size,

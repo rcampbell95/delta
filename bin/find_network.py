@@ -8,8 +8,10 @@ import numpy as np
 from gpu_manager import GPU_Manager
 from individual import Individual
 
-def log_artifacts(config_values, fittest_index):
-    output_folder = os.path.join(config_values["ml"]["output_folder"], str(fittest_index))
+from delta.config import config
+
+def log_artifacts(output_folder, fittest_index):
+    output_folder = os.path.join(output_folder, str(fittest_index))
     model_name = "model.h5"
 
     assert os.path.exists(os.path.join(output_folder, model_name))
@@ -17,6 +19,16 @@ def log_artifacts(config_values, fittest_index):
 
     mlflow.log_artifact(os.path.join(output_folder, model_name))
     mlflow.log_artifact(os.path.join(output_folder, "genotype.csv"))
+
+def log_params():
+    mlflow.log_param("Grid Height", config.model_grid_height())
+    mlflow.log_param("Grid Width", config.model_grid_width())
+    mlflow.log_param("Level Back", config.model_level_back())
+    mlflow.log_param("Shape", config.model_shape())
+    mlflow.log_param("r", config.r())
+    mlflow.log_param("Children", config.search_children())
+    mlflow.log_param("Generations", config.search_generations())
+    mlflow.log_param("Fitness Metric", config.search_fitness_metric())
 
 def create_tmp_dirs(num_children):
     sysTemp = tempfile.gettempdir()
@@ -34,46 +46,45 @@ def create_tmp_dirs(num_children):
 def cleanup_tmp_dirs(tmp_dir):
     shutil.rmtree(tmp_dir)
 
-def find_network(config_values):
-    log = config_values["evolutionary_search"]["log"].lower() == "true"
+def find_network():
+    log = config.log_search()
 
     if log:
-        output_folder = create_tmp_dirs(config_values["evolutionary_search"]["num_children"])
+        output_folder = create_tmp_dirs(config.search_children())
         print(output_folder)
-        config_values["ml"]["output_folder"] = output_folder
-        mlflow.set_tracking_uri("file:./mlruns")
-        mlflow.set_experiment(config_values["ml"]["experiment_name"])
+        mlflow.set_tracking_uri(config.mlflow_uri())
+        mlflow.set_experiment(config.training().experiment)
         mlflow.start_run()
 
-        for category in config_values.keys():
-            for param in config_values[category].keys():
-                mlflow.log_param(param, config_values[category][param])
-
+        log_params()
+        #for category in config_values.keys():
+        #    for param in config_values[category].keys():
+        #        mlflow.log_param(param, config_values[category][param])
     device_manager = GPU_Manager()
     ###
     # Train and evaluate generation 0
     ###
     print("Generation 0")
-    parent = Individual(config_values, device_manager)
+    parent = Individual(output_folder, device_manager)
 
     parent.start()
     parent.join()
 
     best_history = Individual.histories()[0]
-    metric_best = min(best_history[config_values["evolutionary_search"]["metric"]])
+    metric_best = min(best_history[config.search_fitness_metric()])
 
     if log:
-        log_artifacts(config_values, 0)
+        log_artifacts(output_folder, 0)
     #    # Log parent as baseline for best model
 
-        epoch_index = np.argmin(best_history[config_values["evolutionary_search"]["metric"]])
+        epoch_index = np.argmin(best_history[config.search_fitness_metric()])
         for metric, value in best_history.items():
             mlflow.log_metric(metric, value[epoch_index], step=0)
 
-    for generation in range(1, int(config_values["evolutionary_search"]["generations"]) + 1):
+    for generation in range(1, int(config.search_generations()) + 1):
         print("\n\n\nGeneration ", generation)
 
-        children = [parent.generate_child(i) for i in range(int(config_values["evolutionary_search"]["num_children"]))]
+        children = [parent.generate_child(i) for i in range(int(config.search_children()))]
 
         for child in children:
             child.start()
@@ -83,7 +94,7 @@ def find_network(config_values):
         child_histories = Individual.histories()
 
         metric_vals = list(map(lambda history: \
-                           min(history[config_values["evolutionary_search"]["metric"]]), child_histories))
+                           min(history[config.search_fitness_metric()]), child_histories))
         idx_fittest = metric_vals.index(min(metric_vals))
 
         if metric_vals[idx_fittest] < metric_best:
@@ -95,19 +106,19 @@ def find_network(config_values):
 
             if log:
                 best_history = child_histories[idx_fittest]
-                epoch_index = np.argmin(best_history[config_values["evolutionary_search"]["metric"]])
+                epoch_index = np.argmin(best_history[config.search_fitness_metric()])
 
                 for metric, value in best_history.items():
                     mlflow.log_metric(metric, value[epoch_index], step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
-                    log_artifacts(config_values, idx_fittest)
+                    log_artifacts(output_folder, idx_fittest)
                     print("Logged architecture")
                 except AssertionError:
                     print("Artifact can't be logged!")
         else:
             if log:
-                epoch_index = np.argmin(best_history[config_values["evolutionary_search"]["metric"]])
+                epoch_index = np.argmin(best_history[config.search_fitness_metric()])
                 for metric, value in best_history.items():
 
                     mlflow.log_metric(metric, value[epoch_index], step=generation)
@@ -124,22 +135,5 @@ if __name__ == "__main__":
     ###
     # Test find_network()
     ###
-    evolution_config = {
-        "evolutionary_search" : {
-            "grid_height": 10,
-            "grid_width": 3,
-            "level_back": 2,
-            "num_children": 1,
-            "generations": 100,
-            "r": .3,
-            "metric": "val_loss",
-            "log": "true",
-            "shape": "symmetric",
-        },
-        "ml": {
-            "channels": 7,
-            "experiment_name": "test_r_val"
-        }
-    }
 
-    find_network(evolution_config)
+    find_network()

@@ -26,17 +26,18 @@ def psnr(img1, img2):
 class Individual(multiprocessing.Process):
     fitness_queue = multiprocessing.Queue(0)
 
-    def __init__(self, config_values, device_manager, new_genotype=False, child_index=0):
+    def __init__(self, output_folder, device_manager, new_genotype=False, child_index=0):
         multiprocessing.Process.__init__(self)
 
         self.history = None
         self.child_index = child_index
-        self.config_values = config_values
+        self.output_folder = output_folder
         self.device_manager = device_manager
         self.devices = None
+        self.input_shape = None
 
         if new_genotype is False:
-            self.genotype = ConvAutoencoderGenotype(config_values)
+            self.genotype = ConvAutoencoderGenotype()
         else:
             self.genotype = new_genotype
 
@@ -54,10 +55,8 @@ class Individual(multiprocessing.Process):
             else:
                 gene_attrs["Connection id"] = [gene.conn]
 
-        if os.path.exists(os.path.join(self.config_values["ml"]["output_folder"], str(self.child_index))):
-            output_folder = self.config_values["ml"]["output_folder"]
-
-            csv_filename = os.path.join(output_folder, str(self.child_index), "genotype.csv")
+        if os.path.exists(os.path.join(self.output_folder, str(self.child_index))):
+            csv_filename = os.path.join(self.output_folder, str(self.child_index), "genotype.csv")
             pd.DataFrame(gene_attrs).to_csv(csv_filename)
         else:
             print("Cannot save file. Temp path does not exist.")
@@ -85,17 +84,12 @@ class Individual(multiprocessing.Process):
         self.genotype.mutate_hidden_genes()
 
     def generate_child(self, child_index):
-        child_genotype = self.genotype.replicate(self.config_values)
-        child = Individual(self.config_values, self.device_manager, child_genotype, child_index)
+        child_genotype = self.genotype.replicate()
+        child = Individual(self.output_folder, self.device_manager, child_genotype, child_index)
         return child
 
     def build_model(self):
-        chunk_size = config.chunk_size()
-        channels = int(self.config_values["ml"]["channels"])
-
-        input_shape = (chunk_size, chunk_size, channels)
-
-        model = self.genotype.build_model(self.config_values, input_shape)
+        model = self.genotype.build_model(self.input_shape)
 
         self._log_genetics()
 
@@ -107,14 +101,16 @@ class Individual(multiprocessing.Process):
 
             train_spec = config.training()
             train_spec.devices = self.devices
-            train_spec.metrics = [psnr]
+            #train_spec.metrics = [psnr]
 
             ids = assemble_dataset()
 
+            self.input_shape = (ids.chunk_size(), ids.chunk_size(), ids.num_bands())
+
             model, history = train(self.build_model, ids, train_spec)
 
-            model_path = os.path.join(self.config_values["ml"]["output_folder"], str(self.child_index), "model.h5")
-            model.save(model_path, save_format="h5")
+            model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
+            model.save(model_path)
 
             self._release_device()
 
