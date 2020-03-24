@@ -118,7 +118,7 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
 def _mlflow_train_setup(model, dataset, training_spec):
     mlflow.set_tracking_uri(config.mlflow_uri())
     mlflow.set_experiment(training_spec.experiment)
-    mlflow.start_run()
+    mlflow.start_run(nested=config.nest_run())
     _log_mlflow_params(model, dataset, training_spec)
 
     temp_dir = tempfile.mkdtemp()
