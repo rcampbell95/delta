@@ -10,7 +10,7 @@ from delta.imagery.sources import image_set
 from delta.ml import ml_config
 
 #pylint: disable=W0108
-    
+
 def _recursive_update(d, u, ignore_new):
     """
     Like dict.update, but recursively updates only
@@ -158,6 +158,18 @@ _CONFIG_ENTRIES = [
     (['train', 'validation', 'from_training'],        None, bool,         None,            None, None),
     (['train', 'experiment_name'],     None,                str,          None,            None, None),
     (['train', 'optimizer'],           None,                str,          None,            None, None),
+    (['search', 'model', 'grid_height'],           'model_grid_height',       int,      lambda x: x > 1, None, None),
+    (['search', 'model', 'grid_width'],            'model_grid_width',        int,      lambda x: x > 0, None, None),
+    (['search', 'model', 'level_back'],            'model_level_back',        int,      lambda x: x > 0, None, None),
+    (['search', 'evolution','children'],           'search_children',         int,      lambda x: x > 0, None, None),
+    (['search', 'evolution', 'generations'],       'search_generations',      int,      lambda x: x > 0, None, None),
+    (['search', 'evolution', 'fitness_metric'],    'search_fitness_metric',   str,      None,            None, None),
+    (['search', 'log'],                            'log_search',              bool,     None,
+     None, None),
+    (['search', 'model', 'shape'],                 'model_shape',             str,
+     lambda x: x.lower() in ["symmetric", "asymmetric"], None, None),
+    (['search', 'evolution', 'r'],                 'r',                       float,    lambda x: 0 < x < 1,
+     None, None),
     (['mlflow', 'enabled'],   'mlflow_enabled',       bool,               None,            None,
      'Enable MLFlow.'),
     (['mlflow', 'uri'],       'mlflow_uri',           str,                None,            None,
@@ -168,6 +180,8 @@ _CONFIG_ENTRIES = [
      'Frequency in batches to store neural network checkpoints in MLFlow.'),
     (['mlflow', 'checkpoints', 'save_latest'], 'mlflow_checkpoint_latest', bool,   None,            None,
      'If true, only store the latest checkpoint.'),
+    (['mlflow', 'nest_run'], 'nest_run',             bool,               None,            None,
+     "If true, training runs are nested under parent run."),
     (['tensorboard', 'enabled'],  'tb_enabled',       bool,               None,            None,
      'Enable tensorboard.'),
     (['tensorboard', 'dir'],      'tb_dir',           str,                None,            None,
@@ -450,7 +464,9 @@ def __load_initial_config():
                             os.path.join(dirs.user_config_dir, 'delta.yaml')]
 
     for filename in DEFAULT_CONFIG_FILES:
+        print(filename)
         if os.path.exists(filename):
+            print(filename)
             config.load(filename)
 
 __load_initial_config()
