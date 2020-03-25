@@ -8,6 +8,7 @@ import numpy as np
 from gpu_manager import GPU_Manager
 from individual import Individual
 
+
 from delta.config import config
 
 def log_artifacts(output_folder, fittest_index):
@@ -79,7 +80,7 @@ def find_network():
 
         epoch_index = np.argmin(best_history[config.search_fitness_metric()])
         for metric, value in best_history.items():
-            mlflow.log_metric(metric, value[epoch_index], step=0)
+            mlflow.log_metric(metric, value[epoch_index].item(), step=0)
 
     for generation in range(1, int(config.search_generations()) + 1):
         print("\n\n\nGeneration ", generation)
@@ -109,7 +110,7 @@ def find_network():
                 epoch_index = np.argmin(best_history[config.search_fitness_metric()])
 
                 for metric, value in best_history.items():
-                    mlflow.log_metric(metric, value[epoch_index], step=generation)
+                    mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
                     log_artifacts(output_folder, idx_fittest)
@@ -121,7 +122,7 @@ def find_network():
                 epoch_index = np.argmin(best_history[config.search_fitness_metric()])
                 for metric, value in best_history.items():
 
-                    mlflow.log_metric(metric, value[epoch_index], step=generation)
+                    mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 
