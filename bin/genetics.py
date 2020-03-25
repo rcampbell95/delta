@@ -2,9 +2,11 @@ import copy
 
 import numpy as np
 
+from delta.config import config
+
 
 class Gene:
-    def __init__(self, node_id, config):
+    def __init__(self, node_id):
         """
         Parameters:
         -----------
@@ -19,8 +21,8 @@ class Gene:
         self.params = self.define_gene()
 
         self.node_id = node_id
-        self.rows = int(config["evolutionary_search"]["grid_height"])
-        self.level_back = int(config["evolutionary_search"]["level_back"])
+        self.rows = int(config.model_grid_height())
+        self.level_back = int(config.model_level_back())
         self.conn = -1
 
         self.random_init()
@@ -71,7 +73,7 @@ class Gene:
         """
         Mutate the gene with some probability r
         """
-        prb_mutate = np.random.standard_normal()
+        prb_mutate = np.random.standard_normal() % 1
 
         if prb_mutate <= r:
             for param, _ in self.attrs.items():
@@ -86,18 +88,18 @@ class Gene:
         return False
 
 class Genotype:
-    def __init__(self, config, genes=False):
-        self.height = int(config["evolutionary_search"]["grid_height"])
-        self.width = int(config["evolutionary_search"]["grid_width"])
+    def __init__(self, genes=False):
+        self.height = int(config.model_grid_height())
+        self.width = int(config.model_grid_width())
         self.n_genes = self.height * self.width + 1
-        self.mutation_rate = float(config["evolutionary_search"]["r"])
+        self.mutation_rate = float(config.r())
 
         if not genes:
-            self.genes = [Gene(i, config) for i in range(self.n_genes)]
+            self.genes = [Gene(i) for i in range(self.n_genes)]
         else:
             self.genes = genes
 
-    def replicate(self, config=None):
+    def replicate(self):
         """
         Generates a child by mutating parent
         Parameters:
@@ -109,7 +111,7 @@ class Genotype:
             child: Child genotype created by mutating parent
         """
         child_genes = [copy.deepcopy(gene) for gene in self.genes]
-        child = self.__class__(config, child_genes)
+        child = self.__class__(child_genes)
         encoder = child.trace_encoder()
 
         phenotype_mutated = False
@@ -152,7 +154,7 @@ class Genotype:
 
         return encoder_nodes
 
-    def build_model(self, config_values, input_shape):
+    def build_model(self, input_shape):
         """
         Build a model according to the individual's genotype
         Parameters:
