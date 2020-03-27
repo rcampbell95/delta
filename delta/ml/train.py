@@ -144,10 +144,14 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
         model.compile(optimizer=training_spec.optimizer, loss=training_spec.loss_function,
                       metrics=training_spec.metrics)
 
-    input_shape = model.layers[0].input_shape
+    input_shape = model.layers[0].input_shape[0]
     output_shape = model.layers[-1].output_shape
 
-    chunk_size = input_shape[1]
+    try:
+        chunk_size = input_shape[1]
+    except IndexError:
+        input_shape = model.layers[0].input_shape[0]
+        chunk_size = input_shape[1]
 
     assert len(input_shape) == 4, 'Input to network is wrong shape.' # TODO: Hard coding 4 a bad idea?
     assert input_shape[0] is None, 'Input is not batched.'

@@ -1,9 +1,12 @@
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
-from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D
+from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D, GaussianNoise
 from tensorflow.keras.models import Model
 
-from genetics import Gene, Genotype
+from tensorflow.keras.regularizers import l1
 
+from delta.search.genetics import Gene, Genotype
+
+#sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from delta.config import config
 
@@ -33,12 +36,14 @@ class ConvAutoencoderGenotype(Genotype):
         coding_sequence = self.trace_encoder()
         coding_sequence = coding_sequence[1:]
 
+        x = GaussianNoise(0.1)(x)
+
         # Build encoder
         for gene in reversed(coding_sequence):
             kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
             x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size,
-                       padding = "same")(x)
+                       padding = "same", activity_regularizer=l1(10e-5))(x)
 
             x = MaxPooling2D(pool_size=2)(x)
 

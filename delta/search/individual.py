@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+from functools import reduce
 
 import tensorflow as tf
 import pandas as pd
@@ -8,7 +9,7 @@ from delta.config import config
 from delta.imagery import imagery_dataset
 from delta.ml.train import train
 
-from conv_autoencoder import ConvAutoencoderGenotype
+from delta.search.conv_autoencoder import ConvAutoencoderGenotype
 
 def assemble_dataset():
 
@@ -95,6 +96,27 @@ class Individual(multiprocessing.Process):
 
         return model
 
+
+
+
+    def _weighted_loss(self, feature_shape, history, gamma):
+        def _filter_none(shape):
+            return filter(lambda x: x is not None, shape)
+
+        def _multiply(shape):
+            return reduce(lambda x, y: x * y, shape)
+
+        shape_flatten_input = _multiply(_filter_none(self.input_shape))
+        shape_flatten_features = _multiply(_filter_none(feature_shape))
+
+        _history = {}
+        compression_loss = gamma * (shape_flatten_input / shape_flatten_features)
+
+        for metric in history.keys():
+            _history[metric] = list(map(lambda x: x + compression_loss, history[metric]))
+        return _history
+
+
     def run(self):
         with tf.Graph().as_default():
             self._request_device()
@@ -105,7 +127,9 @@ class Individual(multiprocessing.Process):
 
             ids = assemble_dataset()
 
-            self.input_shape = (ids.chunk_size(), ids.chunk_size(), ids.num_bands())
+            self.input_shape = (config.chunk_size(), config.chunk_size(), ids.num_bands())
+
+            print("Input shape:", self.input_shape)
 
             model, history = train(self.build_model, ids, train_spec)
 

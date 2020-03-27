@@ -182,6 +182,7 @@ _CONFIG_ENTRIES = [
      'If true, only store the latest checkpoint.'),
     (['mlflow', 'nest_run'], 'nest_run',             bool,               None,            None,
      "If true, training runs are nested under parent run."),
+    #(['mlflow', 'tags'],             "tags",          dict,         None,            None, None),
     (['tensorboard', 'enabled'],  'tb_enabled',       bool,               None,            None,
      'Enable tensorboard.'),
     (['tensorboard', 'dir'],      'tb_dir',           str,                None,            None,
@@ -464,9 +465,7 @@ def __load_initial_config():
                             os.path.join(dirs.user_config_dir, 'delta.yaml')]
 
     for filename in DEFAULT_CONFIG_FILES:
-        print(filename)
         if os.path.exists(filename):
-            print(filename)
             config.load(filename)
 
 __load_initial_config()
