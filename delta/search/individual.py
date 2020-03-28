@@ -3,7 +3,9 @@ import os
 from functools import reduce
 
 import tensorflow as tf
+from tensorflow.keras.layers import Conv2DTranspose, GlobalAveragePooling2D
 import pandas as pd
+import numpy as np
 
 from delta.config import config
 from delta.imagery import imagery_dataset
@@ -96,24 +98,39 @@ class Individual(multiprocessing.Process):
 
         return model
 
-
-
-
-    def _weighted_loss(self, feature_shape, history, gamma):
+    def _criterion_loss(self, model, history, gamma):
         def _filter_none(shape):
             return filter(lambda x: x is not None, shape)
 
         def _multiply(shape):
             return reduce(lambda x, y: x * y, shape)
 
+        def criterion_loss(loss):
+            reconstruction_loss =  loss
+
+            criterion =  (np.log(shape_flatten_input) * shape_flatten_features) - 2*np.log(loss)
+
+            weighted_loss = (1 - gamma) * reconstruction_loss + gamma * criterion
+            return weighted_loss
+
+        for idx, layer in enumerate(model.layers):
+            # Checks for first layer of decoder
+            if isinstance(layer, (Conv2DTranspose, GlobalAveragePooling2D)):
+                feature_layer_idx = idx - 2
+                break
+
+        feature_shape = model.layers[feature_layer_idx].output_shape
+
         shape_flatten_input = _multiply(_filter_none(self.input_shape))
         shape_flatten_features = _multiply(_filter_none(feature_shape))
 
         _history = {}
-        compression_loss = gamma * (shape_flatten_input / shape_flatten_features)
 
         for metric in history.keys():
-            _history[metric] = list(map(lambda x: x + compression_loss, history[metric]))
+            if "loss" in metric:
+                _history[metric] = list(map(criterion_loss, history[metric]))
+            else:
+                _history[metric] = history[metric]
         return _history
 
 
@@ -129,9 +146,9 @@ class Individual(multiprocessing.Process):
 
             self.input_shape = (config.chunk_size(), config.chunk_size(), ids.num_bands())
 
-            print("Input shape:", self.input_shape)
-
             model, history = train(self.build_model, ids, train_spec)
+
+            history.history = self._criterion_loss(model, history.history, 0.5)
 
             model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
             model.save(model_path)

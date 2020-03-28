@@ -1,12 +1,8 @@
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
-from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D, GaussianNoise
+from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D
 from tensorflow.keras.models import Model
 
-from tensorflow.keras.regularizers import l1
-
 from delta.search.genetics import Gene, Genotype
-
-#sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from delta.config import config
 
@@ -15,8 +11,7 @@ def define_gene(self):
                    "kernel_size": (1, 3, 5, 7),
                    "regularization": ("spatial_dropout", "dropout"),
                    "dropout_rate": (0.0, 0.1, 0.3, 0.5),
-                   "activation": ("selu", "relu", "tanh"),
-                   "output": ("dense", "transpose")}
+                   "activation": ("selu", "relu", "tanh")}
 
     return self.params
 
@@ -30,20 +25,18 @@ class ConvAutoencoderGenotype(Genotype):
         out_kernel_size = 1
         shape = config.model_shape()
 
-        inputs = Input(shape=input_shape)
-        x = inputs
-
         coding_sequence = self.trace_encoder()
         coding_sequence = coding_sequence[1:]
 
-        x = GaussianNoise(0.1)(x)
+        inputs = Input(shape=input_shape)
+        x = inputs
 
         # Build encoder
         for gene in reversed(coding_sequence):
             kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
             x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size,
-                       padding = "same", activity_regularizer=l1(10e-5))(x)
+                       padding = "same")(x)
 
             x = MaxPooling2D(pool_size=2)(x)
 
@@ -73,14 +66,14 @@ class ConvAutoencoderGenotype(Genotype):
                     x = Dropout(rate=gene.attrs["dropout_rate"])(x)
 
         # Add decoder layer for asymmetric autoencoder or add output layer for symmetric autoencoder
-        if shape == "symmetric" or coding_sequence[0].attrs["output"] == "transpose":
+        if shape == "symmetric": #or coding_sequence[0].attrs["output"] == "transpose":
             # Define output deconvolutional layer
             output = Conv2DTranspose(filters=out_channels,
                                      kernel_size=out_kernel_size,
                                      name="output",
                                      activation="sigmoid")(x)
         # Add decoder for flatten + dense asymmetric autoencoder
-        elif coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
+        elif shape == "asymmetric": #coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
             x = GlobalAveragePooling2D()(x)
             x = Dense(out_dims ** 2 * out_channels)(x)
             x = Activation("sigmoid")(x)
