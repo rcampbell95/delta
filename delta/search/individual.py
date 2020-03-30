@@ -133,13 +133,16 @@ class Individual(multiprocessing.Process):
                 _history[metric] = history[metric]
         return _history
 
-
     def run(self):
         with tf.Graph().as_default():
             self._request_device()
 
             train_spec = config.training()
             train_spec.devices = self.devices
+            _patience = lambda x: 10 if x > 100 else (x ** -1) * 10 **3
+            train_spec.callbacks.extend([
+                tf.keras.callbacks.EarlyStopping(patience=_patience(train_spec.epochs))
+            ])
             #train_spec.metrics = [psnr]
 
             ids = assemble_dataset()
@@ -148,7 +151,7 @@ class Individual(multiprocessing.Process):
 
             model, history = train(self.build_model, ids, train_spec)
 
-            history.history = self._criterion_loss(model, history.history, 0.5)
+            history.history = self._criterion_loss(model, history.history, 0.2)
 
             model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
             model.save(model_path)
