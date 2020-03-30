@@ -116,7 +116,7 @@ class Individual(multiprocessing.Process):
         for idx, layer in enumerate(model.layers):
             # Checks for first layer of decoder
             if isinstance(layer, (Conv2DTranspose, GlobalAveragePooling2D)):
-                feature_layer_idx = idx - 2
+                feature_layer_idx = idx
                 break
 
         feature_shape = model.layers[feature_layer_idx].output_shape
@@ -135,7 +135,7 @@ class Individual(multiprocessing.Process):
 
     def run(self):
         with tf.Graph().as_default():
-            self._request_device()
+            #self._request_device()
 
             train_spec = config.training()
             train_spec.devices = self.devices
@@ -151,12 +151,12 @@ class Individual(multiprocessing.Process):
 
             model, history = train(self.build_model, ids, train_spec)
 
-            history.history = self._criterion_loss(model, history.history, 0.2)
+            history.history = self._criterion_loss(model, history.history, config.search_gamma())
 
             model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
             model.save(model_path)
 
-            self._release_device()
+            #self._release_device()
 
             msg = (self.child_index, history.history)
 

@@ -165,6 +165,8 @@ _CONFIG_ENTRIES = [
     (['search', 'evolution','children'],           'search_children',         int,      lambda x: x > 0, None, None),
     (['search', 'evolution', 'generations'],       'search_generations',      int,      lambda x: x > 0, None, None),
     (['search', 'evolution', 'fitness_metric'],    'search_fitness_metric',   str,      None,            None, None),
+    (['search', 'evolution', 'gamma'],             'search_gamma',            float,    lambda x: 1 >= x >= 0,
+     None, None),
     (['search', 'log'],                            'log_search',              bool,     None,
      None, None),
     (['search', 'model', 'shape'],                 'model_shape',             str,
