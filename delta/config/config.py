@@ -152,6 +152,7 @@ _CONFIG_ENTRIES = [
      'batch-size', 'Features to group into each batch for training.'),
     (['train', 'loss_function'],       None,                str,          None,            None, None),
     (['train', 'metrics'],             None,                list,         None,            None, None),
+    (['train', 'callbacks'],           None,                list,         None,            None, None),
     (['train', 'steps'],               None,                int,          None,
      'steps', 'Number of steps to train for.'),
     (['train', 'validation', 'steps'], None,                int,          lambda x: x > 0, None, None),
@@ -367,6 +368,7 @@ class DeltaConfig:
                                                  validation=validation,
                                                  steps=self._get_entry(['train', 'steps']),
                                                  metrics=self._get_entry(['train', 'metrics']),
+                                                 callbacks=self._get_entry(['train', 'callbacks']),
                                                  chunk_stride=self._get_entry(['train', 'chunk_stride']),
                                                  optimizer=self._get_entry(['train', 'optimizer']),
                                                  experiment_name=self._get_entry(['train', 'experiment_name']))

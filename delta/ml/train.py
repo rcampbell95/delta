@@ -130,6 +130,19 @@ def _mlflow_train_setup(model, dataset, training_spec):
 
     return _MLFlowCallback(temp_dir)
 
+def _callbacks_setup(callbacks):
+    _callbacks = []
+    for callback in callbacks:
+        if isinstance(callback, str) and hasattr(tf.keras.callbacks, callback):
+            callback_class = getattr(tf.keras.callbacks, callback)
+            _callbacks.append(callback_class())
+        elif isinstance(callback, tf.keras.callbacks.Callback):
+            _callbacks.append(callback)
+
+    return _callbacks
+
+
+
 def train(model_fn, dataset : ImageryDataset, training_spec):
     """
     Trains the specified model on a dataset according to a training
@@ -162,7 +175,7 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
 
     (ds, validation) = _prep_datasets(dataset, training_spec, chunk_size, output_shape[1])
 
-    callbacks = []
+    callbacks = _callbacks_setup(training_spec.callbacks)
     if config.tb_enabled():
         tcb = tf.keras.callbacks.TensorBoard(log_dir=config.tb_dir(),
                                              update_freq=config.tb_freq())
