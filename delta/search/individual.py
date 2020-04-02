@@ -5,7 +5,7 @@ from functools import reduce
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2DTranspose, GlobalAveragePooling2D
 import pandas as pd
-#import numpy as np
+import numpy as np
 
 from delta.config import config
 from delta.imagery import imagery_dataset
@@ -38,7 +38,7 @@ def weighted_loss(model, history, gamma):
 
         #bic = (np.log(shape_flatten_input) * shape_flatten_features) - 2*np.log(loss)
 
-        parameters = shape_flatten_features
+        parameters = np.log(shape_flatten_features)
 
         loss = (1 - gamma) * reconstruction_loss + gamma * parameters
         return loss
