@@ -26,6 +26,43 @@ def assemble_dataset():
 def psnr(img1, img2):
     return tf.image.psnr(img1, img2, max_val=1)
 
+def weighted_loss(model, history, gamma):
+    def _filter_none(shape):
+        return filter(lambda x: x is not None, shape)
+
+    def _multiply(shape):
+        return reduce(lambda x, y: x * y, shape)
+
+    def _weighted_loss(mse):
+        reconstruction_loss = mse
+
+        #bic = (np.log(shape_flatten_input) * shape_flatten_features) - 2*np.log(loss)
+
+        parameters = np.log(shape_flatten_features)
+
+        loss = (1 - gamma) * reconstruction_loss + gamma * parameters
+        return loss
+
+    for idx, layer in enumerate(model.layers):
+        # Checks for first layer of decoder
+        if isinstance(layer, (Conv2DTranspose, GlobalAveragePooling2D)):
+            feature_layer_idx = idx
+            break
+
+    feature_shape = model.layers[feature_layer_idx].output_shape
+
+    #shape_flatten_input = _multiply(_filter_none(self.input_shape))
+    shape_flatten_features = _multiply(_filter_none(feature_shape))
+
+    _history = {}
+
+    for metric in history.keys():
+        if "loss" in metric:
+            _history[metric] = list(map(_weighted_loss, history[metric]))
+        else:
+            _history[metric] = history[metric]
+    return _history
+
 class Individual(multiprocessing.Process):
     fitness_queue = multiprocessing.Queue(0)
 
@@ -98,41 +135,6 @@ class Individual(multiprocessing.Process):
 
         return model
 
-    def _criterion_loss(self, model, history, gamma):
-        def _filter_none(shape):
-            return filter(lambda x: x is not None, shape)
-
-        def _multiply(shape):
-            return reduce(lambda x, y: x * y, shape)
-
-        def criterion_loss(loss):
-            reconstruction_loss =  loss
-
-            criterion =  (np.log(shape_flatten_input) * shape_flatten_features) - 2*np.log(loss)
-
-            weighted_loss = (1 - gamma) * reconstruction_loss + gamma * criterion
-            return weighted_loss
-
-        for idx, layer in enumerate(model.layers):
-            # Checks for first layer of decoder
-            if isinstance(layer, (Conv2DTranspose, GlobalAveragePooling2D)):
-                feature_layer_idx = idx
-                break
-
-        feature_shape = model.layers[feature_layer_idx].output_shape
-
-        shape_flatten_input = _multiply(_filter_none(self.input_shape))
-        shape_flatten_features = _multiply(_filter_none(feature_shape))
-
-        _history = {}
-
-        for metric in history.keys():
-            if "loss" in metric:
-                _history[metric] = list(map(criterion_loss, history[metric]))
-            else:
-                _history[metric] = history[metric]
-        return _history
-
     def run(self):
         with tf.Graph().as_default():
             #self._request_device()
@@ -151,7 +153,7 @@ class Individual(multiprocessing.Process):
 
             model, history = train(self.build_model, ids, train_spec)
 
-            history.history = self._criterion_loss(model, history.history, config.search_gamma())
+            history.history = weighted_loss(model, history.history, config.search_gamma())
 
             model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
             model.save(model_path)
