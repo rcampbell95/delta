@@ -4,6 +4,7 @@ Tools for loading input images into the TensorFlow Dataset class.
 import functools
 import math
 import random
+import sys
 
 import tensorflow as tf
 
@@ -24,7 +25,10 @@ class ImageryDataset:
         assert (chunk_size % 2) == (output_size % 2), 'Chunk size and output size must both be either even or odd.'
         self._chunk_size = chunk_size
         self._output_size = output_size
+        self._output_dims = 1
         self._chunk_stride = chunk_stride
+        self._data_type = tf.float32
+        self._label_type = tf.uint8
 
         if labels:
             assert len(images) == len(labels)
@@ -49,15 +53,17 @@ class ImageryDataset:
             tgs = []
             for i in range(len(self._images)):
                 img = loader.load_image(self._images, i)
-                # TODO: account for other data types properly
                 # w * h * bands * 4 * chunk * chunk = max_block_bytes
-                tile_width = int(math.sqrt(max_block_bytes / img.num_bands() / 4 /
+                tile_width = int(math.sqrt(max_block_bytes / img.num_bands() / self._data_type.size /
                                            config.tile_ratio()))
                 tile_height = int(config.tile_ratio() * tile_width)
-                if tile_width < self._chunk_size * 2:
-                    raise ValueError('max_block_size is too low.')
-                if tile_height < self._chunk_size * 2:
-                    raise ValueError('max_block_size is too low.')
+                min_block_size = self._chunk_size ** 2 * config.tile_ratio() * img.num_bands() * 4
+                if max_block_bytes < min_block_size:
+                    print('Warning: max_block_bytes=%g MB, but %g MB is recommended (minimum: %g MB)' % ( \
+                          max_block_bytes / 1024 / 1024, min_block_size * 2 / 1024 / 1024, min_block_size / 1024/ 1024),
+                          file=sys.stderr)
+                if tile_width < self._chunk_size or tile_height < self._chunk_size:
+                    raise ValueError('max_block_bytes is too low.')
                 tiles = img.tiles(tile_width, tile_height, min_width=self._chunk_size, min_height=self._chunk_size,
                                   overlap=self._chunk_size - 1)
                 random.Random(0).shuffle(tiles) # gives consistent random ordering so labels will match
@@ -124,8 +130,7 @@ class ImageryDataset:
         """
         Unbatched dataset of image chunks.
         """
-        # TODO: other types?
-        ret = self._load_images(False, tf.float32)
+        ret = self._load_images(False, self._data_type)
         ret = ret.map(self._chunk_image, num_parallel_calls=config.threads())
         return ret.unbatch()
 
@@ -133,7 +138,7 @@ class ImageryDataset:
         """
         Unbatched dataset of labels.
         """
-        label_set = self._load_images(True, tf.uint8)
+        label_set = self._load_images(True, self._label_type)
         label_set = label_set.map(self._reshape_labels)
 
         return label_set.unbatch()
@@ -161,11 +166,11 @@ class ImageryDataset:
         """
         Size of chunks used for inputs.
         """
-    def output_size(self):
+    def output_shape(self):
         """
         Output size of blocks of labels.
         """
-        return self._output_size
+        return (self._output_size, self._output_size, self._output_dims)
 
     def image_set(self):
         """
@@ -187,6 +192,7 @@ class AutoencoderDataset(ImageryDataset):
         """
         super(AutoencoderDataset, self).__init__(images, None, chunk_size, chunk_size, chunk_stride=chunk_stride)
         self._labels = self._images
+        self._output_dims = self.num_bands()
 
     def labels(self):
         return self.data()

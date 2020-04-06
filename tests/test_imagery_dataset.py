@@ -26,12 +26,14 @@ def load_dataset(source, output_size):
                   type: %s
                   directory: %s
                   extension: %s
-                  preprocess: False
+                  preprocess:
+                    enabled: false
                 labels:
                   type: %s
                   directory: %s
                   extension: %s
-                  preprocess: False
+                  preprocess:
+                    enabled: false
                 network:
                   chunk_size: 3
                 mlflow:
@@ -97,12 +99,12 @@ def test_block_label(dataset_block_label): #pylint: disable=redefined-outer-name
 
 def test_train(dataset): #pylint: disable=redefined-outer-name
     def model_fn():
-        return keras.Sequential([
-            keras.layers.Flatten(input_shape=(3, 3, 1)),
-            keras.layers.Dense(3 * 3, activation=tf.nn.relu),
-            keras.layers.Dense(2, activation=tf.nn.softmax),
-            keras.layers.Reshape((1, 1, 2))
-            ])
+        kerasinput = keras.layers.Input((3, 3, 1))
+        flat = keras.layers.Flatten()(kerasinput)
+        dense2 = keras.layers.Dense(3 * 3, activation=tf.nn.relu)(flat)
+        dense1 = keras.layers.Dense(2, activation=tf.nn.softmax)(dense2)
+        reshape = keras.layers.Reshape((1, 1, 2))(dense1)
+        return keras.Model(inputs=kerasinput, outputs=reshape)
     model, _ = train.train(model_fn, dataset,
                            TrainingSpec(100, 5, 'sparse_categorical_crossentropy'))
     ret = model.evaluate(x=dataset.dataset().batch(1000))
@@ -110,9 +112,10 @@ def test_train(dataset): #pylint: disable=redefined-outer-name
 
     (test_image, test_label) = conftest.generate_tile()
     test_label = test_label[1:-1, 1:-1]
-    predictor = predict.LabelPredictor(model)
-    result = predictor.predict(npy.NumpyImage(test_image))
-    assert sum(sum(np.logical_xor(result, test_label))) < 200 # very easy test since we don't train much
+    output_image = npy.NumpyImageWriter()
+    predictor = predict.LabelPredictor(model, output_image=output_image)
+    predictor.predict(npy.NumpyImage(test_image))
+    assert sum(sum(np.logical_xor(output_image.buffer(), test_label))) < 200 # very easy test since we don't train much
 
 @pytest.fixture(scope="function")
 def autoencoder(all_sources):
@@ -128,7 +131,8 @@ def autoencoder(all_sources):
                   type: %s
                   directory: %s
                   extension: %s
-                  preprocess: False
+                  preprocess:
+                    enabled: false
                 network:
                   chunk_size: 3
                 mlflow:

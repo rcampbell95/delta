@@ -2,6 +2,7 @@ import collections
 import os
 import os.path
 
+import numpy as np
 import yaml
 import pkg_resources
 import appdirs
@@ -32,10 +33,22 @@ __DEFAULT_EXTENSIONS = {'tiff' : '.tiff',
                         'worldview' : '.zip',
                         'landsat' : '.zip',
                         'npy' : '.npy'}
+__DEFAULT_SCALE_FACTORS = {'tiff' : 1024.0,
+                           'worldview' : 2048.0,
+                           'landsat' : 120.0,
+                           'npy' : None}
 def __extension(conf):
-    if conf['extension'] is None:
+    if conf['extension'] == 'default':
         return __DEFAULT_EXTENSIONS.get(conf['type'])
     return conf['extension']
+def __scale_factor(conf):
+    f = conf['preprocess']['scale_factor']
+    if f == 'default':
+        return __DEFAULT_SCALE_FACTORS.get(conf['type'])
+    try:
+        return float(f)
+    except ValueError:
+        raise ValueError('Scale factor is %s, must be a float.' % (f))
 
 def __find_images(conf, matching_images=None, matching_conf=None):
     '''
@@ -44,7 +57,9 @@ def __find_images(conf, matching_images=None, matching_conf=None):
     '''
     images = []
     if (conf['files'] is None) != (conf['file_list'] is None) != (conf['directory'] is None):
-        raise  ValueError('Too many image specification methods used.')
+        raise  ValueError('''Too many image specification methods used.\n
+                             Choose one of "files", "file_list" and "directory" when indicating 
+                             file locations.''')
     if conf['type'] not in __DEFAULT_EXTENSIONS:
         raise ValueError('Unexpected image type %s.' % (conf['type']))
 
@@ -75,6 +90,14 @@ def __find_images(conf, matching_images=None, matching_conf=None):
             raise ValueError('Image file %s does not exist.' % (img))
     return images
 
+def __preprocess_function(image_dict):
+    if not image_dict['preprocess']['enabled']:
+        return None
+    f = __scale_factor(image_dict)
+    if f is None:
+        return None
+    return lambda data, _, dummy: data / np.float32(f)
+
 def _config_to_image_label_sets(images_dict, labels_dict):
     '''
     Takes two configuration subsections and returns (image set, label set)
@@ -90,7 +113,8 @@ def _config_to_image_label_sets(images_dict, labels_dict):
                 label_extension = __extension(labels_dict)
                 images = [img for img in images if not img.endswith(label_extension)]
 
-    imageset = image_set.ImageSet(images, images_dict['type'], images_dict['preprocess'], images_dict['nodata_value'])
+    pre = __preprocess_function(images_dict)
+    imageset = image_set.ImageSet(images, images_dict['type'], pre, images_dict['nodata_value'])
 
     if (labels_dict['files'] is None) and (labels_dict['file_list'] is None) and (labels_dict['directory'] is None):
         return (imageset, None)
@@ -100,8 +124,9 @@ def _config_to_image_label_sets(images_dict, labels_dict):
     if len(labels) != len(images):
         raise ValueError('%d images found, but %d labels found.' % (len(images), len(labels)))
 
+    pre = __preprocess_function(labels_dict)
     return (imageset, image_set.ImageSet(labels, labels_dict['type'],
-                                         labels_dict['preprocess'], labels_dict['nodata_value']))
+                                         pre, labels_dict['nodata_value']))
 
 # images validated when finding the files
 def __image_entries(keys, cpre):
@@ -115,7 +140,8 @@ def __image_entries(keys, cpre):
          cpre + '-dir' if cpre else None, 'Directory to search for images of given extension.'),
         (keys + ['extension'],           None,               str,                None,
          cpre + '-extension' if cpre else None, 'File extension to search for images in given directory.'),
-        (keys + ['preprocess'],          None,               bool,               None,            None, None),
+        (keys + ['preprocess', 'enabled'], None,             bool,               None,            None, None),
+        (keys + ['preprocess', 'scale_factor'], None,        (float, str),       None,            None, None),
         (keys + ['nodata_value'],        None,               float,              None,            None, None)
     ]
 
@@ -128,11 +154,11 @@ _CONFIG_ENTRIES = [
      'gpus', 'Number of gpus to use.'),
     (['general', 'threads'],           'threads',           int,          lambda x : x is None or x > 0,
      'threads', 'Number of threads to use.'),
-    (['general', 'block_size_mb'],     'block_size_mb',     int,          lambda x : x > 0, None,
+    (['general', 'block_size_mb'],     'block_size_mb',     int,          lambda x : x > 0, 'block-size-mb',
      'Size of an image block to load in memory at once.'),
     (['general', 'interleave_images'], 'interleave_images', int,          lambda x : x > 0, None,
      'Number of images to interleave at a time when training.'),
-    (['general', 'tile_ratio'],        'tile_ratio',        float,        lambda x : x > 0, None,
+    (['general', 'tile_ratio'],        'tile_ratio',        float,        lambda x : x > 0, 'tile-ratio',
      'Width to height ratio of blocks to load in images.'),
     (['general', 'cache', 'dir'],      None,                str,          None,             None, None),
     (['general', 'cache', 'limit'],    None,                int,          lambda x : x > 0, None, None),
@@ -189,9 +215,7 @@ _CONFIG_ENTRIES = [
     (['tensorboard', 'enabled'],  'tb_enabled',       bool,               None,            None,
      'Enable tensorboard.'),
     (['tensorboard', 'dir'],      'tb_dir',           str,                None,            None,
-     'Directory to store tensorboard data.'),
-    (['tensorboard', 'frequency'], 'tb_freq',         int,                lambda x: x > 0, None,
-     'Frequency of updates to tensorboard.')
+     'Directory to store tensorboard data.')
 ]
 _CONFIG_ENTRIES.extend(__image_entries(['images'], 'image'))
 _CONFIG_ENTRIES.extend(__image_entries(['labels'], 'label'))
