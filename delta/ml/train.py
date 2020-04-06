@@ -132,12 +132,15 @@ def _mlflow_train_setup(model, dataset, training_spec):
 
 def _callbacks_setup(callbacks):
     _callbacks = []
-    for callback in callbacks:
-        if isinstance(callback, str) and hasattr(tf.keras.callbacks, callback):
-            callback_class = getattr(tf.keras.callbacks, callback)
-            _callbacks.append(callback_class())
-        elif isinstance(callback, tf.keras.callbacks.Callback):
-            _callbacks.append(callback)
+
+    if callbacks is not None:
+        for callback in callbacks:
+            if isinstance(callback, str) and hasattr(tf.keras.callbacks, callback):
+                callback_class = getattr(tf.keras.callbacks, callback)
+                _callbacks.append(callback_class())
+            elif isinstance(callback, tf.keras.callbacks.Callback):
+                _callbacks.append(callback)
+
 
     return _callbacks
 
