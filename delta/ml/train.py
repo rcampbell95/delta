@@ -214,7 +214,7 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
             model_path = os.path.join(mcb.temp_dir, 'final_model.h5')
             print('\nFinished, saving model to %s.' % (mlflow.get_artifact_uri() + '/final_model.h5'))
             model.save(model_path, save_format='h5')
-            mlflow.log_artifact(model_path) 
+            mlflow.log_artifact(model_path)
             os.remove(model_path)
             mlflow.log_param('Status', 'Completed')
     except:
