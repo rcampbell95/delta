@@ -78,7 +78,7 @@ def _log_mlflow_params(model, dataset, training_spec):
     mlflow.log_param('Batch Size', training_spec.batch_size)
     mlflow.log_param('Optimizer', training_spec.optimizer)
     mlflow.log_param('Model Layers', len(model.layers))
-    mlflow.log_param('Status', 'Running')
+    #mlflow.log_param('Status', 'Running')
 
 class _MLFlowCallback(tf.keras.callbacks.Callback):
     """
@@ -121,6 +121,8 @@ def _mlflow_train_setup(model, dataset, training_spec):
     mlflow.set_experiment(training_spec.experiment)
     mlflow.start_run(nested=config.nest_run())
     _log_mlflow_params(model, dataset, training_spec)
+    if training_spec.tags is not None:
+        mlflow.set_tags(training_spec.tags)
 
     temp_dir = tempfile.mkdtemp()
     fname = os.path.join(temp_dir, 'config.yaml')
@@ -212,7 +214,7 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
             model_path = os.path.join(mcb.temp_dir, 'final_model.h5')
             print('\nFinished, saving model to %s.' % (mlflow.get_artifact_uri() + '/final_model.h5'))
             model.save(model_path, save_format='h5')
-            mlflow.log_artifact(model_path)
+            mlflow.log_artifact(model_path) 
             os.remove(model_path)
             mlflow.log_param('Status', 'Completed')
     except:

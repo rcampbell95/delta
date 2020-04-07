@@ -179,6 +179,7 @@ _CONFIG_ENTRIES = [
     (['train', 'loss_function'],       None,                str,          None,            None, None),
     (['train', 'metrics'],             None,                list,         None,            None, None),
     (['train', 'callbacks'],           None,                list,         None,            None, None),
+    (['train', 'tags'],                None,                dict,         None,            None, None),
     (['train', 'steps'],               None,                int,          None,
      'steps', 'Number of steps to train for.'),
     (['train', 'validation', 'steps'], None,                int,          lambda x: x > 0, None, None),
@@ -211,7 +212,6 @@ _CONFIG_ENTRIES = [
      'If true, only store the latest checkpoint.'),
     (['mlflow', 'nest_run'], 'nest_run',             bool,               None,            None,
      "If true, training runs are nested under parent run."),
-    #(['mlflow', 'tags'],             "tags",          dict,         None,            None, None),
     (['tensorboard', 'enabled'],  'tb_enabled',       bool,               None,            None,
      'Enable tensorboard.'),
     (['tensorboard', 'dir'],      'tb_dir',           str,                None,            None,
@@ -395,6 +395,7 @@ class DeltaConfig:
                                                  steps=self._get_entry(['train', 'steps']),
                                                  metrics=self._get_entry(['train', 'metrics']),
                                                  callbacks=self._get_entry(['train', 'callbacks']),
+                                                 tags=self._get_entry(['train', 'tags']),
                                                  chunk_stride=self._get_entry(['train', 'chunk_stride']),
                                                  optimizer=self._get_entry(['train', 'optimizer']),
                                                  experiment_name=self._get_entry(['train', 'experiment_name']))

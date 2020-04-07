@@ -25,7 +25,7 @@ class TrainingSpec:#pylint:disable=too-few-public-methods,too-many-arguments,dan
     Options used in training by `delta.ml.train.train`.
     """
     def __init__(self, batch_size, epochs, loss_function, validation=None, steps=None,
-                 metrics=['accuracy'], callbacks=[], chunk_stride=1, optimizer='adam', experiment_name='Default'):
+                 metrics=['accuracy'], callbacks=[], tags={}, chunk_stride=1, optimizer='adam', experiment_name='Default'):
         self.batch_size = batch_size
         self.epochs = epochs
         self.loss_function = loss_function
@@ -33,6 +33,7 @@ class TrainingSpec:#pylint:disable=too-few-public-methods,too-many-arguments,dan
         self.steps = steps
         self.metrics = metrics
         self.callbacks = callbacks
+        self.tags = tags
         self.chunk_stride = chunk_stride
         self.optimizer = optimizer
         self.experiment = experiment_name

@@ -20,8 +20,6 @@ images:
     enabled:        true
     scale_factor:   default
   nodata_value:     ~
-  #  directory:        ~/nasa/delta/bin/landsat/data_no_ground_truth
-  #extension:        .tif
   directory:        ~
   extension:        default
   file_list:        ~
@@ -33,8 +31,6 @@ labels:
     enabled:        false
     scale_factor:   default
   nodata_value:     ~
-#directory:        ~/nasa/delta/bin/landsat/labels
-#  extension:        .tif
   directory:        ~
   extension:        default
   file_list:        ~
@@ -56,8 +52,11 @@ train:
   epochs:          5
   loss_function:   mse
   metrics:
-  experiment_name: debug # used in tracking tools
+  experiment_name: fitness_function # used in tracking tools
   optimizer:       adam
+  callbacks:       
+    - ReduceLROnPlateau
+  tags: ~
   validation:
     steps:         20
     # if true, skips the first steps from the training set to use for validation instead
@@ -83,6 +82,22 @@ train:
       extension:   default
       file_list:   ~
       files:       ~
+
+
+search:
+  model:
+    grid_height:    10
+    grid_width:     3
+    level_back:     2
+    shape:          symmetric
+  evolution:
+    r:              0.1
+    gamma:          0.01
+    children:       1
+    generations:    100
+    fitness_metric: val_loss
+  log: true 
+ 
  
 mlflow:
   # default to ~/.local/share/delta/mlflow
@@ -94,6 +109,7 @@ mlflow:
   checkpoints:
     frequency:     10000
     save_latest:   true
+  nest_run:        true
 tensorboard:
   enabled:        false
   # default to ~/.local/share/delta/tensorboard
