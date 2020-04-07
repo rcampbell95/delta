@@ -1,5 +1,5 @@
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input, Activation, SpatialDropout2D, Dropout
-from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D, MaxPooling2D, UpSampling2D, GaussianNoise
+from tensorflow.keras.layers import Dense, Reshape, GlobalAveragePooling2D
 from tensorflow.keras.models import Model
 
 import tensorflow as tf
@@ -14,7 +14,6 @@ def define_gene(self):
                    "regularization": ("spatial_dropout", "dropout"),
                    "dropout_rate": (0.0, 0.1, 0.3, 0.5),
                    "activation": ("selu", "relu", "tanh"),
-                   "noise_sigma": (0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3),
                    "alpha": (0.0, 1e-1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5)}
 
     return self.params
@@ -36,20 +35,17 @@ class ConvAutoencoderGenotype(Genotype):
         inputs = Input(shape=input_shape)
         x = inputs
 
-        x = GaussianNoise(output_gene.attrs["noise_sigma"])(x)
-
         # Build encoder
         for gene in reversed(coding_sequence):
             kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
-            x = Conv2D(filters = gene.attrs["filter_size"], kernel_size = kernel_size,
+            x = Conv2D(filters = gene.attrs["filter_size"],
+                       kernel_size = kernel_size,
+                       strides = (2, 2),
                        padding = "same",
                        activity_regularizer=tf.keras.regularizers.l1(output_gene.attrs["alpha"]))(x)
 
             x = Activation(gene.attrs["activation"])(x)
-
-            x = MaxPooling2D(pool_size=2)(x)
-
 
             if gene.attrs["regularization"] == "spatial_dropout":
                 x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
@@ -63,12 +59,10 @@ class ConvAutoencoderGenotype(Genotype):
 
                 x = Conv2DTranspose(filters=gene.attrs["filter_size"],
                                     kernel_size=kernel_size,
+                                    strides=(2, 2),
                                     padding="same")(x)
 
                 x = Activation(gene.attrs["activation"])(x)
-
-                x = UpSampling2D(size=2)(x)
-
 
                 if gene.attrs["regularization"] == "spatial_dropout":
                     x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
