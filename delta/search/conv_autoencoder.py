@@ -26,7 +26,7 @@ class ConvAutoencoderGenotype(Genotype):
         out_dims = input_shape[1]
         #pool_size = 2
         out_kernel_size = 1
-        shape = config.model_shape()
+        shape = config.autoencoder_shape()
 
         coding_sequence = self.trace_encoder()
         output_gene = coding_sequence[0]

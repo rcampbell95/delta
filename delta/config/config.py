@@ -193,11 +193,12 @@ _CONFIG_ENTRIES = [
     (['search', 'evolution', 'generations'],       'search_generations',      int,      lambda x: x > 0, None, None),
     (['search', 'evolution', 'fitness_metric'],    'search_fitness_metric',   str,      None,            None, None),
     (['search', 'evolution', 'gamma'],             'search_gamma',            float,    lambda x: 1 >= x >= 0,
-     None, None),
+     'gamma', "Hyperparameter that weighs reconstruction error with representation compression in search"),
     (['search', 'log'],                            'log_search',              bool,     None,
      None, None),
-    (['search', 'model', 'shape'],                 'model_shape',             str,
-     lambda x: x.lower() in ["symmetric", "asymmetric"], None, None),
+    (['search', 'model', 'shape'],                 'autoencoder_shape',             str,
+     lambda x: x.lower() in ["symmetric", "asymmetric"], 'autoencoder-shape',
+     "Search space for autoencoder search"),
     (['search', 'evolution', 'r'],                 'r',                       float,    lambda x: 0 < x < 1,
      None, None),
     (['mlflow', 'enabled'],   'mlflow_enabled',       bool,               None,            None,
@@ -407,7 +408,7 @@ class DeltaConfig:
             if e[0][0] == group_key and e[4] is not None:
                 group.add_argument('--' + e[4], dest=e[4].replace('-', '_'), required=False, type=e[2], help=e[5])
 
-    def setup_arg_parser(self, parser, general=True, images=True, labels=True, train=False) -> None:
+    def setup_arg_parser(self, parser, general=True, images=True, labels=True, train=False, search=True) -> None:
         """
         Setup the ArgParser parser to allow the specified options.
 
@@ -436,6 +437,10 @@ class DeltaConfig:
             group = parser.add_argument_group('Machine Learning')
             self.__add_arg_group(group, 'network')
             self.__add_arg_group(group, 'train')
+
+        if search:
+            group = parser.add_argument_group('Feature Learning')
+            self.__add_arg_group(group, 'search')
 
     def parse_args(self, options):
         """

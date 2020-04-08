@@ -29,11 +29,12 @@ def log_params():
     mlflow.log_param("Grid Height", config.model_grid_height())
     mlflow.log_param("Grid Width", config.model_grid_width())
     mlflow.log_param("Level Back", config.model_level_back())
-    mlflow.log_param("Shape", config.model_shape())
+    mlflow.log_param("Shape", config.autoencoder_shape())
     mlflow.log_param("r", config.r())
     mlflow.log_param("Children", config.search_children())
     mlflow.log_param("Generations", config.search_generations())
     mlflow.log_param("Fitness Metric", config.search_fitness_metric())
+    mlflow.log_param("Gamma", config.search_gamma())
 
 def create_tmp_dirs(num_children):
     sysTemp = tempfile.gettempdir()
