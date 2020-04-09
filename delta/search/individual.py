@@ -66,7 +66,7 @@ def weighted_loss(model, history, gamma):
 class Individual(multiprocessing.Process):
     fitness_queue = multiprocessing.Queue(0)
 
-    def __init__(self, output_folder, device_manager, new_genotype=False, child_index=0):
+    def __init__(self, output_folder, device_manager=None, new_genotype=False, child_index=0):
         multiprocessing.Process.__init__(self)
 
         self.history = None

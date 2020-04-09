@@ -5,7 +5,7 @@ import os
 import mlflow
 import numpy as np
 
-import tensorflow.keras as keras
+#import tensorflow.keras as keras
 
 from delta.search.gpu_manager import GPU_Manager
 from delta.search.individual import Individual
@@ -66,12 +66,12 @@ def find_network():
         #for category in config_values.keys():
         #    for param in config_values[category].keys():
         #        mlflow.log_param(param, config_values[category][param])
-    device_manager = GPU_Manager()
+    #device_manager = GPU_Manager()
     ###
     # Train and evaluate generation 0
     ###
     print("Generation 0")
-    parent = Individual(output_folder, device_manager)
+    parent = Individual(output_folder)
 
     parent.start()
     parent.join()
@@ -134,7 +134,8 @@ def find_network():
 
     if log:
         tracking_uri = mlflow.get_artifact_uri()
-        fittest_model = keras.models.load_model(os.path.join(tracking_uri, "model.h5"), compile=False)
+        #fittest_model = keras.models.load_model(os.path.join(tracking_uri, "model.h5"), compile=False)
+        fittest_model = None
 
         mlflow.end_run()
         cleanup_tmp_dirs(output_folder)
