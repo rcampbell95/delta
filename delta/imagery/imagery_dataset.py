@@ -124,7 +124,7 @@ class ImageryDataset:
         rates   = [1, 1, 1, 1]
         labels = tf.image.extract_patches(tf.expand_dims(labels, 0), ksizes, strides, rates,
                                           padding='VALID')
-        return tf.reshape(labels, [-1, self._output_size, self._output_size])
+        return tf.reshape(labels, [-1, self._output_size, self._output_size, self._output_dims])
 
     def data(self):
         """
@@ -170,7 +170,7 @@ class ImageryDataset:
         """
         Output size of blocks of labels.
         """
-        return (self._output_size, self._output_size, self._output_dims)
+        return ( self._output_size, self._output_size,  self._output_dims)
 
     def image_set(self):
         """
