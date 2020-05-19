@@ -8,15 +8,16 @@ from delta.config import config
 class Gene:
     def __init__(self, node_id):
         """
-        Parameters:
+        Parameters
         -----------
-            node_id: id used for identifying node in cartesian grid
+            node_id: number
+                id used for identifying node in cartesian grid
 
-            config: search configuration
+            config: dict
+                search configuration
 
-        Returns:
+        Returns
         -----------
-            None
         """
         self.params = self.define_gene()
 
@@ -32,26 +33,22 @@ class Gene:
         """
         Defines the gene for building corresponding models
         using a dictionary of parameters with corresponding search space of values.
-        Parameters:
+        Parameters
         -----------
-            None
-
-        Returns:
+        Returns
         -----------
-            Dictionary
+            gene : dict
         """
         raise NotImplementedError("Implement 'define_gene'")
 
     def random_init(self):
         """
         Initializes the gene to random values in search space.
-        Parameters:
-        -----------
-            None
 
-        Returns:
+        Parameters
         -----------
-            None
+        Returns
+        -----------
         """
         self.attrs = {}
 
@@ -72,6 +69,15 @@ class Gene:
     def mutate(self, r):
         """
         Mutate the gene with some probability r
+
+        Parameters
+        -----------
+        r : number
+            Mutation rate
+
+        Returns
+        -----------
+            None
         """
         prb_mutate = np.random.standard_normal() % 1
 
@@ -102,6 +108,7 @@ class Genotype:
     def replicate(self):
         """
         Generates a child by mutating parent
+
         Parameters:
         -----------
             config: Search configuration
@@ -161,9 +168,7 @@ class Genotype:
         -----------
             input_shape: Input shape of the model to build
 
-            shape: Model type to build (asymmetric, symmetric, etc.)
-
         Returns:
         -----------
-            model: Compiled model for training
+            model: Keras model for training, uncompiled
         """
