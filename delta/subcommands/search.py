@@ -16,7 +16,7 @@ def main(options):
     try:
         model = find_network()
 
-        print(options.model, model)
+        model.save(options.model)
     except KeyboardInterrupt:
         print()
         print('Training cancelled.')

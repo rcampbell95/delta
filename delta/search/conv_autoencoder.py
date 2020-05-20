@@ -14,19 +14,19 @@ def define_gene(self):
                    "regularization": ("spatial_dropout", "dropout"),
                    "dropout_rate": (0.0, 0.1, 0.3, 0.5),
                    "activation": ("selu", "relu", "tanh"),
-                   "alpha": (0.0, 1e-1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5)}
-
+                   "alpha": (0.0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5)}
     return self.params
 
 Gene.define_gene = define_gene
 
 class ConvAutoencoderGenotype(Genotype):
     def build_model(self, input_shape):
-        out_channels = input_shape[-1]
-        out_dims = input_shape[1]
-        #pool_size = 2
-        out_kernel_size = 1
-        shape = config.autoencoder_shape()
+        OUT_CHANNELS = input_shape[-1]
+        OUT_DIMS = input_shape[1]
+        POOL_STRIDE = 2
+        OUT_KERNEL_SIZE = 1
+
+        ae_shape = config.autoencoder_shape()
 
         coding_sequence = self.trace_encoder()
         output_gene = coding_sequence[0]
@@ -41,7 +41,7 @@ class ConvAutoencoderGenotype(Genotype):
 
             x = Conv2D(filters = gene.attrs["filter_size"],
                        kernel_size = kernel_size,
-                       strides = (2, 2),
+                       strides = (POOL_STRIDE, POOL_STRIDE),
                        padding = "same",
                        activity_regularizer=tf.keras.regularizers.l1(output_gene.attrs["alpha"]))(x)
 
@@ -53,13 +53,13 @@ class ConvAutoencoderGenotype(Genotype):
                 x = Dropout(rate=gene.attrs["dropout_rate"])(x)
 
         # Build decoder
-        if shape == "symmetric":
+        if ae_shape == "symmetric":
             for gene in coding_sequence:
                 kernel_size = (gene.attrs["kernel_size"], gene.attrs["kernel_size"])
 
                 x = Conv2DTranspose(filters=gene.attrs["filter_size"],
                                     kernel_size=kernel_size,
-                                    strides=(2, 2),
+                                    strides=(POOL_STRIDE, POOL_STRIDE),
                                     padding="same")(x)
 
                 x = Activation(gene.attrs["activation"])(x)
@@ -69,17 +69,14 @@ class ConvAutoencoderGenotype(Genotype):
                 elif gene.attrs["regularization"] == "dropout":
                     x = Dropout(rate=gene.attrs["dropout_rate"])(x)
 
-        # Add decoder layer for asymmetric autoencoder or add output layer for symmetric autoencoder
-        if shape == "symmetric": #or coding_sequence[0].attrs["output"] == "transpose":
             # Define output deconvolutional layer
-            output = Conv2DTranspose(filters=out_channels,
-                                     kernel_size=out_kernel_size,
+            output = Conv2DTranspose(filters=OUT_CHANNELS,
+                                     kernel_size=OUT_KERNEL_SIZE,
                                      name="output",
                                      activation="sigmoid")(x)
-        # Add decoder for flatten + dense asymmetric autoencoder
-        elif shape == "asymmetric": #coding_sequence[0].attrs["output"] == "dense" and shape == "asymmetric":
+        elif ae_shape == "asymmetric":
             x = GlobalAveragePooling2D()(x)
-            x = Dense(out_dims ** 2 * out_channels)(x)
+            x = Dense(OUT_DIMS ** 2 * OUT_CHANNELS)(x)
             x = Activation("sigmoid")(x)
             output = Reshape(input_shape)(x)
 

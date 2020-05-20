@@ -5,9 +5,8 @@ import os
 import mlflow
 import numpy as np
 
-#import tensorflow.keras as keras
+import tensorflow.keras as keras
 
-from delta.search.gpu_manager import GPU_Manager
 from delta.search.individual import Individual
 
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -63,9 +62,7 @@ def find_network():
         mlflow.start_run()
 
         log_params()
-        #for category in config_values.keys():
-        #    for param in config_values[category].keys():
-        #        mlflow.log_param(param, config_values[category][param])
+
     #device_manager = GPU_Manager()
     ###
     # Train and evaluate generation 0
@@ -81,10 +78,13 @@ def find_network():
 
     if log:
         log_artifacts(output_folder, 0)
-    #    # Log parent as baseline for best model
+        # Log parent as baseline for best model
 
         epoch_index = np.argmin(best_history[config.search_fitness_metric()])
         for metric, value in best_history.items():
+            #if "test" in metric:
+            #    mlflow.log_metric(metric, value[0].item(), step=0)
+            #else:
             mlflow.log_metric(metric, value[epoch_index].item(), step=0)
 
     for generation in range(1, int(config.search_generations()) + 1):
@@ -115,6 +115,9 @@ def find_network():
                 epoch_index = np.argmin(best_history[config.search_fitness_metric()])
 
                 for metric, value in best_history.items():
+                    #if "test" in metric:
+                    #    mlflow.log_metric(metric, value[0].item(), step=generation)
+                    #else:
                     mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
@@ -126,16 +129,17 @@ def find_network():
             if log:
                 epoch_index = np.argmin(best_history[config.search_fitness_metric()])
                 for metric, value in best_history.items():
-
-                    mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
+                    if "test" in metric:
+                        mlflow.log_metric(metric, value[0].item(), step=generation)
+                    else:
+                        mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 
 
     if log:
         tracking_uri = mlflow.get_artifact_uri()
-        #fittest_model = keras.models.load_model(os.path.join(tracking_uri, "model.h5"), compile=False)
-        fittest_model = None
+        fittest_model = keras.models.load_model(os.path.join(tracking_uri, "model.h5"), compile=False)
 
         mlflow.end_run()
         cleanup_tmp_dirs(output_folder)

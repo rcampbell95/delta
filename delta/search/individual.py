@@ -1,9 +1,11 @@
 import multiprocessing
 import os
+import copy
 from functools import reduce
 
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2DTranspose, GlobalAveragePooling2D
+
 import pandas as pd
 import numpy as np
 
@@ -13,14 +15,13 @@ from delta.ml.train import train
 
 from delta.search.conv_autoencoder import ConvAutoencoderGenotype
 
-def assemble_dataset():
+def assemble_dataset(train_spec):
 
     # Use wrapper class to create a Tensorflow Dataset object.
     # - The dataset will provide image chunks and corresponding labels.
-    tc = config.training()
-
-    ids = imagery_dataset.AutoencoderDataset(config.images(), config.chunk_size(), tc.chunk_stride)
-
+    ids = imagery_dataset.AutoencoderDataset(config.images(),
+                                             config.chunk_size(),
+                                             train_spec.chunk_stride)
     return ids
 
 def psnr(img1, img2):
@@ -51,7 +52,6 @@ def weighted_loss(model, history, gamma):
 
     feature_shape = model.layers[feature_layer_idx].output_shape
 
-    #shape_flatten_input = _multiply(_filter_none(self.input_shape))
     shape_flatten_features = _multiply(_filter_none(feature_shape))
 
     _history = {}
@@ -110,6 +110,18 @@ class Individual(multiprocessing.Process):
 
     @classmethod
     def histories(cls):
+        """
+        Class method that fetches training history from
+        queue for all children
+
+        Parameters
+        ----------
+        Returns
+        ----------
+        histories : list
+            Ordered list of training histories ordered by
+            child id
+        """
         histories = []
 
         while cls.fitness_queue.qsize() > 0:
@@ -136,30 +148,24 @@ class Individual(multiprocessing.Process):
         return model
 
     def run(self):
-        with tf.Graph().as_default():
-            #self._request_device()
+        train_spec = copy.deepcopy(config.training())
+        train_spec.devices = self.devices
+        _patience = lambda x: 10 if x > 100 else (x ** -1) * 10 **3
+        train_spec.callbacks.extend([
+            tf.keras.callbacks.EarlyStopping(patience=_patience(train_spec.epochs))
+        ])
 
-            train_spec = config.training()
-            train_spec.devices = self.devices
-            _patience = lambda x: 10 if x > 100 else (x ** -1) * 10 **3
-            train_spec.callbacks.extend([
-                tf.keras.callbacks.EarlyStopping(patience=_patience(train_spec.epochs))
-            ])
-            #train_spec.metrics = [psnr]
+        ads = assemble_dataset(train_spec)
 
-            ids = assemble_dataset()
+        self.input_shape = (config.chunk_size(), config.chunk_size(), ads.num_bands())
 
-            self.input_shape = (config.chunk_size(), config.chunk_size(), ids.num_bands())
+        model, history = train(self.build_model, ads, train_spec)
 
-            model, history = train(self.build_model, ids, train_spec)
+        history.history = weighted_loss(model, history.history, config.search_gamma())
 
-            history.history = weighted_loss(model, history.history, config.search_gamma())
+        model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
+        model.save(model_path)
 
-            model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
-            model.save(model_path)
+        msg = (self.child_index, history.history)
 
-            #self._release_device()
-
-            msg = (self.child_index, history.history)
-
-            self.fitness_queue.put(msg)
+        self.fitness_queue.put(msg)
