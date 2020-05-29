@@ -79,9 +79,9 @@ class Gene:
         -----------
             None
         """
-        prb_mutate = np.random.standard_normal() % 1
+        to_mutate = np.random.binomial(1, r, 1)
 
-        if prb_mutate <= r:
+        if to_mutate.item() == 1:
             for param, _ in self.attrs.items():
                 # Select a random value in the set of parameters
                 r_idx = np.random.randint(0, len(self.params[param]))
