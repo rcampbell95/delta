@@ -2,28 +2,28 @@ layers:
   - Input:
       shape: in_shape
   - Conv2D:
-      filters: 300
+      filters: 50
       kernel_size: [3, 3]
       activation: relu
       padding: same
   - MaxPooling2D:
       pool_size: [2, 2]
   - Conv2D:
-      filters: 150
+      filters: 50 
       kernel_size: [3, 3]
       activation: relu
       padding: same
   - MaxPooling2D:
       pool_size: [2, 2]
   - Conv2D:
-      filters: 75
+      filters: 50 
       kernel_size: [3, 3]
       activation: relu
       padding: same
   - UpSampling2D:
       size: [2, 2]
   - Conv2D:
-      filters: 150
+      filters: 50
       kernel_size: [3, 3]
       activation: relu
       padding: same

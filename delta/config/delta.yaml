@@ -1,6 +1,9 @@
 general:
   # negative is all
   gpus:              -1
+  stop_on_input_error: true # If false skip past bad input files without halting training
+
+io:
   threads:           1
   # size to load in memory at a time (width x height x bands x bit-width x chunk-size^2)
   block_size_mb:     1
@@ -8,51 +11,77 @@ general:
   interleave_images: 5
   # ratio of tile width and height when loading images
   tile_ratio:        5.0
+  # When resuming training with a log_folder, skip input image where we have
+  # already loaded this many tiles.
+  resume_cutoff:     5000
   cache:
     # default is OS-specific, in Linux, ~/.cache/delta
-    dir:              ~
+    dir:              default
     limit:            8
 
-images:
-  type:             tiff
-  # preprocess the images when loading (i.e., scaling)
-  preprocess:
-    enabled:        true
-    scale_factor:   default
-  nodata_value:     ~
-  directory:        ~
-  extension:        default
-  file_list:        ~
-  files:            ~
+dataset:
+  log_folder:         ~ # Storage location for any record keeping files about the input dataset
+  images:
+    type:             tiff
+    # preprocess the images when loading (i.e., scaling)
+    preprocess:
+      enabled:        true
+      scale_factor:   default
+    nodata_value:     ~
+    directory:        ~
+    extension:        default
+    file_list:        ~
+    files:            ~
+  
+  labels:
+    type:             tiff
+    preprocess:
+      enabled:        false
+      scale_factor:   default
+    nodata_value:     ~
+    directory:        ~
+    extension:        default
+    file_list:        ~
+    files:            ~
 
-labels:
-  type:             tiff
-  preprocess:
-    enabled:        false
-    scale_factor:   default
-  nodata_value:     ~
-  directory:        ~
-  extension:        default
-  file_list:        ~
-  files:            ~
-
-network:
-  chunk_size:      16
-  output_size:     8
-  classes:         2
-  model:
-    yaml_file:     networks/convpool.yaml
-    params:        ~
-    layers:        ~
+  # can either be a list of classes or the number of classes,
+  # if the labels are 0, 1, 2, 3
+  classes:            4
+  # labels are 1, 2, 3, 4; with names and display colors
+  # weight is optional, but required for either all or none
+  #classes:
+  #  - 1:
+  #      name: Water
+  #      color: 0x67a9cf
+  #      weight: 5.0
+  #  - 2:
+  #      name: No Water
+  #      color: 0xf6eff7
+  #      weight: 1.0
+  #  - 3:
+  #      name: Maybe Water
+  #      color: 0xbdc9e1
+  #      weight: 1.0
+  #  - 4:
+  #      name: Cloud
+  #      color: 0x02818a
+  #      weight: 1.0
 
 train:
+  network:
+    chunk_size:      16
+    output_size:     8
+    model:
+      yaml_file:     networks/convpool.yaml
+      params:        ~
+      layers:        ~
   chunk_stride:    1
   batch_size:      100
   steps:           10 # number of batches to train on (or ~ for all)
   epochs:          5
   loss_function:   mse
   metrics:
-  experiment_name: fitness_function # used in tracking tools
+    - sparse_categorical_accuracy
   optimizer:       adam
   callbacks:       
     - ReduceLROnPlateau
@@ -102,15 +131,16 @@ search:
 mlflow:
   # default to ~/.local/share/delta/mlflow
   enabled:        true
-  uri:            ~
+  uri:            default
   # rate in batches to save metrics
   frequency:      10000
+  experiment_name: Default
   # rate in batches to save model checkpoints
   checkpoints:
-    frequency:     10000
-    save_latest:   true
-  nest_run:        true
+    frequency:          10000
+    only_save_latest:   true
+
 tensorboard:
   enabled:        false
   # default to ~/.local/share/delta/tensorboard
-  dir:            ~
+  dir:            default

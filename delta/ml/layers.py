@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 DELTA specific network layers.
 """
@@ -15,25 +32,25 @@ class DeltaLayer(Layer):
 # If layers inherit from callback as well we add them automatically on fit
 class GaussianSample(DeltaLayer):
     def __init__(self, kl_loss=True, **kwargs):
-        super(GaussianSample, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._use_kl_loss = kl_loss
         self._kl_enabled = K.variable(0.0, name=self.name + ':kl_enabled')
         self.trainable = False
 
     def get_config(self):
-        config = super(GaussianSample, self).get_config()
+        config = super().get_config()
         config.update({'kl_loss': self._use_kl_loss})
         return config
 
     def callback(self):
         kl_enabled = self._kl_enabled
         class GaussianSampleCallback(Callback):
-            def on_epoch_begin(self, epoch, _): # pylint:disable=no-self-use
+            def on_epoch_begin(self, epoch, _=None): # pylint:disable=no-self-use
                 if epoch > 0:
                     K.set_value(kl_enabled, 1.0)
         return GaussianSampleCallback()
 
-    def call(self, inputs):
+    def call(self, inputs, **_):
         mean, log_var = inputs
         batch = K.shape(mean)[0]
         dim = K.int_shape(mean)[1:]

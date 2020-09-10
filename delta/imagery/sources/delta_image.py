@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Base class for loading images.
 """
@@ -17,8 +34,9 @@ class DeltaImage(ABC):
     Base class used for wrapping input images in a way that they can be passed
     to Tensorflow dataset objects.
     """
-    def __init__(self):
+    def __init__(self, nodata_value=None):
         self.__preprocess_function = None
+        self.__nodata_value = nodata_value
 
     def read(self, roi: rectangle.Rectangle=None, bands: List[int]=None, buf: np.ndarray=None) -> np.ndarray:
         """
@@ -56,6 +74,12 @@ class DeltaImage(ABC):
         """
         self.__preprocess_function = callback
 
+    def nodata_value(self):
+        """
+        Returns the value of pixels to treat as nodata.
+        """
+        return self.__nodata_value
+
     @abstractmethod
     def _read(self, roi, bands, buf=None):
         """
@@ -81,6 +105,10 @@ class DeltaImage(ABC):
     def block_aligned_roi(self, desired_roi: rectangle.Rectangle) -> rectangle.Rectangle:#pylint:disable=no-self-use
         """Return the block-aligned roi containing this image region, if applicable."""
         return desired_roi
+
+    def block_size(self): #pylint: disable=no-self-use
+        """Return the preferred block size for efficient reading."""
+        return (256, 256)
 
     def width(self) -> int:
         """Return the number of columns."""
@@ -110,7 +138,6 @@ class DeltaImage(ABC):
 
         # gdal doesn't work reading multithreading. But this let's a thread
         # take care of IO input while we do computation.
-        exe = concurrent.futures.ThreadPoolExecutor(1)
         jobs = []
 
         total_rois = len(block_rois)
@@ -131,18 +158,25 @@ class DeltaImage(ABC):
                     continue
                 applicable_rois.append(block_rois.pop(index))
 
-            buf = exe.submit(functools.partial(self.read, read_roi))
-            jobs.append((buf, read_roi, applicable_rois))
+            jobs.append((read_roi, applicable_rois))
 
+        # only do a few reads ahead since otherwise we will exhaust our memory
+        pending = []
+        exe = concurrent.futures.ThreadPoolExecutor(1)
+        NUM_AHEAD = 2
+        for i in range(min(NUM_AHEAD, len(jobs))):
+            pending.append(exe.submit(functools.partial(self.read, jobs[i][0])))
         num_remaining = total_rois
-        for (buf_exe, read_roi, rois) in jobs:
-            buf = buf_exe.result()
+        for (i, (read_roi, rois)) in enumerate(jobs):
+            buf = pending.pop(0).result()
             for roi in rois:
                 x0 = roi.min_x - read_roi.min_x
                 y0 = roi.min_y - read_roi.min_y
                 num_remaining -= 1
                 yield (roi, buf[x0:x0 + roi.width(), y0:y0 + roi.height(), :],
                        (total_rois - num_remaining, total_rois))
+            if i + NUM_AHEAD < len(jobs):
+                pending.append(exe.submit(functools.partial(self.read, jobs[i + NUM_AHEAD][0])))
 
     def process_rois(self, requested_rois: Iterator[rectangle.Rectangle],
                      callback_function: Callable[[rectangle.Rectangle, np.ndarray], None],
@@ -162,7 +196,7 @@ class DeltaImage(ABC):
 
 class DeltaImageWriter(ABC):
     @abstractmethod
-    def initialize(self, size, numpy_dtype, metadata=None):
+    def initialize(self, size, numpy_dtype, metadata=None, nodata_value=None):
         """
         Prepare for writing with the given size and dtype.
         """

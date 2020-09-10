@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Miscellaneous utility classes/functions.
 """
@@ -22,11 +39,11 @@ def unpack_to_folder(compressed_path, unpack_folder):
         else: # Assume a tar file
             with tarfile.TarFile(compressed_path, 'r') as tf:
                 tf.extractall(tmpdir)
-    except:
-        shutil.rmtree(tmpdir)
-        raise
-    # make this atomic so we don't have incomplete data
-    os.rename(tmpdir, unpack_folder)
+    except Exception as e:
+        shutil.rmtree(tmpdir) # Clear any partially unpacked results
+        raise RuntimeError('Caught exception unpacking compressed file: ' + compressed_path
+                           + '\n' + str(e)) from e
+    os.rename(tmpdir, unpack_folder) # Clean up
 
 def progress_bar(text, fill_amount, prefix = '', length = 80): #pylint: disable=W0613
     """

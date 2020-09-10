@@ -1,6 +1,24 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Test for GDAL I/O classes.
 """
+import os.path
 import pytest
 import numpy as np
 
@@ -20,7 +38,6 @@ def check_landsat_tiff(filename):
         assert blocks_x == 7
         assert blocks_y == 1
         assert input_reader.numpy_type(i) == np.float32
-        assert input_reader.nodata_value(i) is None
 
     meta = input_reader.metadata()
     geo = meta['geotransform']
@@ -52,7 +69,7 @@ def check_same(filename1, filename2, data_only=False):
         if not data_only:
             assert in1.block_info(i) == in2.block_info(i)
         assert in1.data_type(i) == in2.data_type(i)
-        assert in1.nodata_value(i) == in2.nodata_value(i)
+        assert in1.nodata_value() == in2.nodata_value()
 
     if not data_only:
         m_1 = in1.metadata()
@@ -71,18 +88,20 @@ def test_geotiff_read():
     '''
     Tests reading a landsat geotiff.
     '''
-    check_landsat_tiff('data/landsat.tiff')
+    file_path = os.path.join(os.path.dirname(__file__), 'data', 'landsat.tiff')
+    check_landsat_tiff(file_path)
 
 def test_geotiff_save(tmpdir):
     '''
     Tests writing a landsat geotiff.
     '''
-    image = TiffImage('data/landsat.tiff')
+    file_path = os.path.join(os.path.dirname(__file__), 'data', 'landsat.tiff')
+    image = TiffImage(file_path)
     new_tiff = str(tmpdir / 'test.tiff')
 
     image.save(new_tiff)
 
-    check_same('data/landsat.tiff', new_tiff)
+    check_same(file_path, new_tiff)
 
 def test_geotiff_write(tmpdir):
     '''

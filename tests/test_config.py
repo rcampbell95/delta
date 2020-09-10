@@ -1,24 +1,43 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 import tempfile
 import pytest
 import yaml
 
+import numpy as np
 import tensorflow as tf
+
+from conftest import config_reset
 
 from delta.config import config
 from delta.ml import model_parser
 
-#pylint: disable=import-outside-toplevel
-
 def test_general():
-    config.reset()
+    config_reset()
 
-    assert config.gpus() == -1
+    assert config.general.gpus() == -1
 
     test_str = '''
     general:
       gpus: 3
+    io:
       threads: 5
       block_size_mb: 10
       interleave_images: 3
@@ -29,51 +48,97 @@ def test_general():
     '''
     config.load(yaml_str=test_str)
 
-    assert config.gpus() == 3
-    assert config.threads() == 5
-    assert config.block_size_mb() == 10
-    assert config.interleave_images() == 3
-    assert config.tile_ratio() == 1.0
-    cache = config.cache_manager()
+    assert config.general.gpus() == 3
+    assert config.io.threads() == 5
+    assert config.io.block_size_mb() == 10
+    assert config.io.interleave_images() == 3
+    assert config.io.tile_ratio() == 1.0
+    cache = config.io.cache.manager()
     assert cache.folder() == 'nonsense'
     assert cache.limit() == 2
     os.rmdir('nonsense')
 
 def test_images_dir():
-    config.reset()
+    config_reset()
+    dir_path = os.path.join(os.path.dirname(__file__), 'data')
     test_str = '''
-    images:
-      type: tiff
-      preprocess:
-        enabled: false
-      directory: data/
-      extension: .tiff
-    '''
+    dataset:
+      images:
+        type: tiff
+        preprocess:
+          enabled: false
+        directory: %s/
+        extension: .tiff
+    ''' % (dir_path)
     config.load(yaml_str=test_str)
-    im = config.images()
+    im = config.dataset.images()
     assert im.preprocess() is None
     assert im.type() == 'tiff'
     assert len(im) == 1
     assert im[0].endswith('landsat.tiff') and os.path.exists(im[0])
 
 def test_images_files():
-    config.reset()
+    config_reset()
+    file_path = os.path.join(os.path.dirname(__file__), 'data', 'landsat.tiff')
     test_str = '''
-    images:
-      type: tiff
-      preprocess:
-        enabled: false
-      files: [data/landsat.tiff]
-    '''
+    dataset:
+      images:
+        type: tiff
+        preprocess:
+          enabled: false
+        files: [%s]
+    ''' % (file_path)
     config.load(yaml_str=test_str)
-    im = config.images()
+    im = config.dataset.images()
     assert im.preprocess() is None
     assert im.type() == 'tiff'
     assert len(im) == 1
-    assert im[0] == 'data/landsat.tiff'
+    assert im[0] == file_path
+
+def test_classes():
+    config_reset()
+    test_str = '''
+    dataset:
+      classes: 2
+    '''
+    config.load(yaml_str=test_str)
+    assert len(config.dataset.classes) == 2
+    for (i, c) in enumerate(config.dataset.classes):
+        assert c.value == i
+    assert config.dataset.classes.weights() is None
+    config_reset()
+    test_str = '''
+    dataset:
+      classes:
+        - 2:
+            name: 2
+            color: 2
+            weight: 5.0
+        - 1:
+            name: 1
+            color: 1
+            weight: 1.0
+        - 5:
+            name: 5
+            color: 5
+            weight: 2.0
+    '''
+    config.load(yaml_str=test_str)
+    assert config.dataset.classes
+    values = [1, 2, 5]
+    for (i, c) in enumerate(config.dataset.classes):
+        e = values[i]
+        assert c.value == e
+        assert c.name == str(e)
+        assert c.color == e
+    assert config.dataset.classes.weights() == [1.0, 5.0, 2.0]
+    arr = np.array(values)
+    ind = config.dataset.classes.classes_to_indices_func()(arr)
+    assert np.max(ind) == 2
+    assert (config.dataset.classes.indices_to_classes_func()(ind) == values).all()
 
 def test_model_from_dict():
-    config.reset()
+    config_reset()
     test_str = '''
     params:
         v1 : 10
@@ -99,7 +164,7 @@ def test_model_from_dict():
     assert len(model.layers) == 4 # Input layer is added behind the scenes
 
 def test_pretrained_layer():
-    config.reset()
+    config_reset()
     base_model = '''
     params:
         v1 : 10
@@ -146,69 +211,73 @@ def test_pretrained_layer():
             break
     os.remove(tmp_filename)
 
-
-
 def test_network_file():
-    config.reset()
+    config_reset()
     test_str = '''
-    network:
-      chunk_size: 5
+    dataset:
       classes: 3
-      model:
-        yaml_file: networks/convpool.yaml
+    train:
+      network:
+        chunk_size: 5
+        model:
+          yaml_file: networks/convpool.yaml
     '''
     config.load(yaml_str=test_str)
-    assert config.chunk_size() == 5
-    assert config.classes() == 3
+    assert config.train.network.chunk_size() == 5
     model = model_parser.config_model(2)()
-    assert model.input_shape == (None, config.chunk_size(), config.chunk_size(), 2)
-    assert model.output_shape == (None, config.output_size(), config.output_size(), config.classes())
+    assert model.input_shape == (None, config.train.network.chunk_size(), config.train.network.chunk_size(), 2)
+    assert model.output_shape == (None, config.train.network.output_size(),
+                                  config.train.network.output_size(), len(config.dataset.classes))
 
 def test_validate():
-    config.reset()
+    config_reset()
     test_str = '''
-    network:
-      chunk_size: -1
+    train:
+      network:
+        chunk_size: -1
     '''
     with pytest.raises(ValueError):
         config.load(yaml_str=test_str)
-    config.reset()
+    config_reset()
     test_str = '''
-    network:
-      chunk_size: string
+    train:
+      network:
+        chunk_size: string
     '''
     with pytest.raises(TypeError):
         config.load(yaml_str=test_str)
 
 def test_network_inline():
-    config.reset()
+    config_reset()
     test_str = '''
-    network:
-      chunk_size: 5
-      output_size: 1
+    dataset:
       classes: 3
-      model:
-        params:
-          v1 : 10
-        layers:
-        - Flatten:
-            input_shape: in_shape
-        - Dense:
-            units: v1
-            activation : relu
-        - Dense:
-            units: out_dims
-            activation : softmax
+    train:
+      network:
+        chunk_size: 5
+        output_size: 1
+        model:
+          params:
+            v1 : 10
+          layers:
+          - Flatten:
+              input_shape: in_shape
+          - Dense:
+              units: v1
+              activation : relu
+          - Dense:
+              units: out_dims
+              activation : softmax
     '''
     config.load(yaml_str=test_str)
-    assert config.chunk_size() == 5
-    assert config.classes() == 3
+    assert config.train.network.chunk_size() == 5
+    assert len(config.dataset.classes) == 3
     model = model_parser.config_model(2)()
-    assert model.input_shape == (None, config.chunk_size(), config.chunk_size(), 2)
-    assert model.output_shape == (None, config.classes())
+    assert model.input_shape == (None, config.train.network.chunk_size(), config.train.network.chunk_size(), 2)
+    assert model.output_shape == (None, len(config.dataset.classes))
 
 def test_train():
-    config.reset()
+    config_reset()
     test_str = '''
     train:
       chunk_stride: 2
@@ -217,49 +286,47 @@ def test_train():
       epochs: 3
       loss_function: loss
       metrics: [metric]
-      experiment_name: name
       optimizer: opt
       validation:
         steps: 20
         from_training: true
     '''
     config.load(yaml_str=test_str)
-    tc = config.training()
+    tc = config.train.spec()
     assert tc.chunk_stride == 2
     assert tc.batch_size == 5
     assert tc.steps == 10
     assert tc.epochs == 3
     assert tc.loss_function == 'loss'
     assert tc.metrics == ['metric']
-    assert tc.experiment == 'name'
     assert tc.optimizer == 'opt'
     assert tc.validation.steps == 20
     assert tc.validation.from_training
 
 def test_mlflow():
-    config.reset()
-
-    assert config.mlflow_enabled()
+    config_reset()
 
     test_str = '''
     mlflow:
       enabled: false
       uri: nonsense
+      experiment_name: name
       frequency: 5
       checkpoints:
         frequency: 10
     '''
     config.load(yaml_str=test_str)
 
-    assert not config.mlflow_enabled()
-    assert config.mlflow_uri() == 'nonsense'
-    assert config.mlflow_freq() == 5
-    assert config.mlflow_checkpoint_freq() == 10
+    assert not config.mlflow.enabled()
+    assert config.mlflow.uri() == 'nonsense'
+    assert config.mlflow.frequency() == 5
+    assert config.mlflow.experiment() == 'name'
+    assert config.mlflow.checkpoints.frequency() == 10
 
 def test_tensorboard():
-    config.reset()
+    config_reset()
 
-    assert not config.tb_enabled()
+    assert not config.tensorboard.enabled()
 
     test_str = '''
     tensorboard:
@@ -268,27 +335,27 @@ def test_tensorboard():
     '''
     config.load(yaml_str=test_str)
 
-    assert not config.tb_enabled()
-    assert config.tb_dir() == 'nonsense'
+    assert not config.tensorboard.enabled()
+    assert config.tensorboard.dir() == 'nonsense'
 
 def test_argparser():
-    config.reset()
+    config_reset()
 
     parser = argparse.ArgumentParser()
-    config.setup_arg_parser(parser, general=True, images=True, labels=True, train=True)
+    config.setup_arg_parser(parser)
 
-    options = parser.parse_args(('--chunk-size 5 --image-type tiff --image data/landsat.tiff' +
-                                 ' --label-type tiff --label data/landsat.tiff').split())
+    file_path = os.path.join(os.path.dirname(__file__), 'data', 'landsat.tiff')
+    options = parser.parse_args(('--chunk-size 5 --image-type tiff --image %s' % (file_path) +
+                                 ' --label-type tiff --label %s' % (file_path)).split())
     config.parse_args(options)
 
-    assert config.chunk_size() == 5
-    im = config.images()
+    assert config.train.network.chunk_size() == 5
+    im = config.dataset.images()
     assert im.preprocess() is not None
     assert im.type() == 'tiff'
     assert len(im) == 1
     assert im[0].endswith('landsat.tiff') and os.path.exists(im[0])
-    im = config.labels()
-    assert im.preprocess() is None
+    im = config.dataset.labels()
     assert im.type() == 'tiff'
     assert len(im) == 1
     assert im[0].endswith('landsat.tiff') and os.path.exists(im[0])

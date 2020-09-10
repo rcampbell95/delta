@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Block-aligned reading from multiple Geotiff files.
 """
@@ -15,12 +32,12 @@ from . import delta_image
 class TiffImage(delta_image.DeltaImage):
     """For geotiffs."""
 
-    def __init__(self, path):
+    def __init__(self, path, nodata_value=None):
         '''
         Opens a geotiff for reading. paths can be either a single filename or a list.
         For a list, the images are opened in order as a multi-band image, assumed to overlap.
         '''
-        super(TiffImage, self).__init__()
+        super().__init__(nodata_value)
         paths = self._prep(path)
 
         self._paths = paths
@@ -90,12 +107,13 @@ class TiffImage(delta_image.DeltaImage):
         assert ret
         return ret
 
-    def nodata_value(self, band=0):
-        '''
-        Returns the value that indicates no data is present in a pixel for the specified band.
-        '''
-        self.__asert_open()
-        return self._gdal_band(band).GetNoDataValue()
+    # using custom nodata from config TODO: use both
+    #def nodata_value(self, band=0):
+    #    '''
+    #    Returns the value that indicates no data is present in a pixel for the specified band.
+    #    '''
+    #    self.__asert_open()
+    #    return self._gdal_band(band).GetNoDataValue()
 
     def data_type(self, band=0):
         '''
@@ -132,6 +150,10 @@ class TiffImage(delta_image.DeltaImage):
             gdal.GDT_Float64: 8
         }
         return results.get(self.data_type(band))
+
+    def block_size(self):
+        (bs, _) = self.block_info()
+        return bs
 
     def block_info(self, band=0):
         """Returns ((block height, block width), (num blocks x, num blocks y))"""
@@ -235,7 +257,7 @@ class RGBAImage(TiffImage):
 
         # Get the path to the cached image
         fname = os.path.basename(paths)
-        output_path = config.cache_manager().register_item(fname)
+        output_path = config.io.cache.manager().register_item(fname)
 
         if not os.path.exists(output_path):
             # Just remove the alpha band from the original image
@@ -243,13 +265,17 @@ class RGBAImage(TiffImage):
             os.system(cmd)
         return [output_path]
 
-def numpy_dtype_to_gdal_type(dtype):
+def numpy_dtype_to_gdal_type(dtype): #pylint: disable=R0911
     if dtype == np.uint8:
         return gdal.GDT_Byte
     if dtype == np.uint16:
         return gdal.GDT_UInt16
     if dtype == np.uint32:
         return gdal.GDT_UInt32
+    if dtype == np.int16:
+        return gdal.GDT_Int16
+    if dtype == np.int32:
+        return gdal.GDT_Int32
     if dtype == np.float32:
         return gdal.GDT_Float32
     if dtype == np.float64:
@@ -283,7 +309,7 @@ class TiffWriter:
     """Class to manage block writes to a Geotiff file.
     """
     def __init__(self, path, width, height, num_bands=1, data_type=gdal.GDT_Byte, #pylint:disable=too-many-arguments
-                 tile_width=256, tile_height=256, no_data_value=None, metadata=None):
+                 tile_width=256, tile_height=256, nodata_value=None, metadata=None):
         self._width  = width
         self._height = height
         self._tile_height = tile_height
@@ -303,9 +329,9 @@ class TiffWriter:
         if not self._handle:
             raise Exception('Failed to create output file: ' + path)
 
-        if no_data_value is not None:
+        if nodata_value is not None:
             for i in range(1,num_bands+1):
-                self._handle.GetRasterBand(i).SetNoDataValue(no_data_value)
+                self._handle.GetRasterBand(i).SetNoDataValue(nodata_value)
 
         if metadata:
             self._handle.SetProjection  (metadata['projection'  ])
@@ -392,14 +418,15 @@ class DeltaTiffWriter(delta_image.DeltaImageWriter):
         self._filename = filename
         self._tiff_w = None
 
-    def initialize(self, size, numpy_dtype, metadata=None):
+    def initialize(self, size, numpy_dtype, metadata=None, nodata_value=None):
         """
         Prepare for writing with the given size and dtype.
         """
-        assert len(size) == 3
+        assert (len(size) == 3), ('Error: len(size) of '+str(size)+' != 3')
         TILE_SIZE = 256
         self._tiff_w = TiffWriter(self._filename, size[0], size[1], num_bands=size[2],
                                   data_type=numpy_dtype_to_gdal_type(numpy_dtype), metadata=metadata,
+                                  nodata_value=nodata_value,
                                   tile_width=min(TILE_SIZE, size[0]), tile_height=min(TILE_SIZE, size[1]))
 
     def write(self, data, x, y):
@@ -412,7 +439,8 @@ class DeltaTiffWriter(delta_image.DeltaImageWriter):
         """
         Finish writing.
         """
-        self._tiff_w.close()
+        if self._tiff_w is not None:
+            self._tiff_w.close()
 
     def abort(self):
         self.close()
