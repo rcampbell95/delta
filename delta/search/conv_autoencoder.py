@@ -60,14 +60,14 @@ class ConvAutoencoderGenotype(Genotype):
                        kernel_size = kernel_size,
                        strides = (POOL_STRIDE, POOL_STRIDE),
                        padding = "same",
-                       activity_regularizer=tf.keras.regularizers.l1(output_gene.attrs["alpha"]))(x)
+                       activity_regularizer=tf.keras.regularizers.l1(1e-5))(x)
 
             x = Activation(gene.attrs["activation"])(x)
 
-            if gene.attrs["regularization"] == "spatial_dropout":
-                x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
-            elif gene.attrs["regularization"] == "dropout":
-                x = Dropout(rate=gene.attrs["dropout_rate"])(x)
+            #if gene.attrs["regularization"] == "spatial_dropout":
+            #    x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
+            #elif gene.attrs["regularization"] == "dropout":
+            #    x = Dropout(rate=gene.attrs["dropout_rate"])(x)
 
         # Build decoder
         if ae_shape == "symmetric":
@@ -81,10 +81,10 @@ class ConvAutoencoderGenotype(Genotype):
 
                 x = Activation(gene.attrs["activation"])(x)
 
-                if gene.attrs["regularization"] == "spatial_dropout":
-                    x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
-                elif gene.attrs["regularization"] == "dropout":
-                    x = Dropout(rate=gene.attrs["dropout_rate"])(x)
+                #if gene.attrs["regularization"] == "spatial_dropout":
+                #    x = SpatialDropout2D(rate=gene.attrs["dropout_rate"])(x)
+                #elif gene.attrs["regularization"] == "dropout":
+                #    x = Dropout(rate=gene.attrs["dropout_rate"])(x)
 
             # Define output deconvolutional layer
             output = Conv2DTranspose(filters=OUT_CHANNELS,

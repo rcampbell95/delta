@@ -1,12 +1,14 @@
 import argparse
 import os
 import multiprocessing
+import time
+import copy
 
 import pandas as pd
 
 from tensorflow.keras.models import clone_model
 import tensorflow.keras as keras
-from tensorflow.keras.layers import Dense, Activation, Reshape, Flatten
+from tensorflow.keras.layers import Dense, Activation, Reshape, Flatten, BatchNormalization, Dropout
 from tensorflow.keras.layers import Conv2DTranspose, GlobalAveragePooling2D
 from tensorflow.keras.models import Model
 import tensorflow as tf
@@ -46,7 +48,7 @@ class Classifier(multiprocessing.Process):
 
 
     def build_model(self):
-        if hasattr(self, "model"):
+        if self.model is not None:
             print("Model already built and loaded in memory. Aborting operation")
         else:
             with model_file_lock:
@@ -61,8 +63,16 @@ class Classifier(multiprocessing.Process):
                 layer.trainable = self.trainable
 
             x = Flatten(name="flatten")(self.model.layers[out_idx].output)
-            #x = GlobalAveragePooling2D(name="global_avg_pooling")(self.model.layers[out_idx].output)
-            x = Dense(config.output_size() ** 2)(x)
+            x = BatchNormalization(name="batch_norm_1")(x)
+             #x = GlobalAveragePooling2D(name="global_avg_pooling")(self.model.layers[out_idx].output)
+             #x = Dense(380)(x)
+             #x = Activation("relu", name="activation_penultimate")(x)
+            x = Dense(64, name="dense_1", activation="relu")(x)
+            x = BatchNormalization(name="batch_norm_2")(x)
+            x = Dense(64, name="dense_2", activation="relu")(x)
+            x = BatchNormalization(name="batch_norm_3")(x)
+            
+            x = Dense((config.output_size() ** 2) * 1)(x)
             x = Reshape((config.output_size(), config.output_size(), 1))(x)
             x = Activation("sigmoid", name="activation_out")(x)
             #x = Softmax(name="softmax_out", axis=-1)(x)
@@ -80,9 +90,17 @@ class Classifier(multiprocessing.Process):
     def run(self):
         ids = assemble_dataset()
 
+        self.train_spec.optimizer = tf.keras.optimizers.Adam()
+
         self.train_spec.metrics = ['accuracy',
+                                   tf.keras.metrics.AUC(curve="PR", num_thresholds=1000),
                                    tf.keras.metrics.Precision(),
-                                   tf.keras.metrics.Recall()]
+                                   tf.keras.metrics.Recall(),
+                                   tf.keras.metrics.FalseNegatives()]
+
+        #self.train_spec.loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        
+        self.train_spec.callbacks = [tf.keras.callbacks.ReduceLROnPlateau(factor=.9, verbose=1)]
 
         train.train(self.build_model, ids, self.train_spec)
 
@@ -125,17 +143,22 @@ for run_id in run_info[run_id_key]:
         print(model_path)
         assert os.path.exists(model_path)
 
-        ts = config.training()
-
-        if "Shape" in row and "Run ID" in row:
-            ts.tags = {"shape": row["Shape"].item(), "encoder_id": row["Run ID"].item()}
+        ts = copy.deepcopy(config.training())
 
         ts.model_path = model_path
         ts.strategy = strategy
+
+        if "Shape" in row and "Run ID" in row:
+            ts.tags = {"Shape": row["Shape"].item(), 
+                       "Encoder ID": row["Run ID"].item(),
+                       "Gamma": row["Gamma"].item(),
+                       "Strategy": TRAINING_STRATEGIES[strategy]}
 
         procs.append(Classifier(ts))
 
     for proc in procs:
         proc.start()
+        # proc.join()
+        time.sleep(20)
     for proc in procs:
         proc.join()

@@ -15,7 +15,7 @@ import mlflow
 import tensorflow as tf #pylint: disable=C0413
 from tensorflow import keras #pylint: disable=C0413
 
-from delta import config #pylint: disable=C0413
+from delta.config import config #pylint: disable=C0413
 from delta.imagery import imagery_dataset #pylint: disable=C0413
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,8 +23,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 parser = argparse.ArgumentParser(usage='predict_image.py [options]')
 
-parser.add_argument("--config-file", dest="config_file", required=True,
-                    help="Dataset configuration file.")
 parser.add_argument("--model-path", dest="model_path", required=False,
                     help="Path to keras model for classification.")
 
@@ -34,9 +32,6 @@ try:
 except argparse.ArgumentError:
     parser.print_help(sys.stderr)
     sys.exit(1)
-
-config.load_config_file(options.config_file)
-config_values = config.get_config()
 
 # TODO: Read these from file!
 height = 1062
@@ -48,21 +43,22 @@ num_tiles = num_tiles_x*num_tiles_y
 
 
 # Make a non-shuffled dataset for only one image
-def make_evaluate_ds():
-    ids = imagery_dataset.ImageryDatasetTFRecord(config_values)
-    ds = ids.dataset(filter_zero=False, shuffle=False)
-    ds = ds.batch(200)
+#def make_evaluate_ds():
+#    ids = imagery_dataset.ImageryDatasetTFRecord(config_values)
+#    ds = ids.dataset(filter_zero=False, shuffle=False)
+#    ds = ds.batch(200)
 
-    return ds
+#    return ds
     
 def make_classify_ds():
-    config_values['ml']['chunk_overlap'] = 0#int(config_values['ml']['chunk_size']) - 1 # TODO
-    ids = imagery_dataset.ImageryDatasetTFRecord(config_values)
-    ds = ids.dataset(filter_zero=False, shuffle=False, predict=True)
-    ds = ds.batch(200)
-    return ds
 
-tf.set_random_seed(1)
+    # Use wrapper class to create a Tensorflow Dataset object.
+    # - The dataset will provide image chunks and corresponding labels.
+    tc = config.training()
+
+    ids = imagery_dataset.AutoencoderDataset(config.images(), config.chunk_size(), tc.chunk_stride)
+
+    return ids.dataset().batch(200)
 
 model = keras.models.load_model(options.model_path)
 
@@ -123,6 +119,6 @@ for ty in range(0,num_tiles_y):
 # Write the output image to disk
 plt.subplot(1,1,1)
 plt.imshow(pic)
-plt.savefig(os.path.join(config_values["ml"]["output_folder"], "out.png"))
+plt.savefig("out.png")
 
 print('predict_image finished!')

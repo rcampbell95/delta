@@ -74,10 +74,17 @@ def find_network():
     print(config.general.gpus())
 
     if log:
+<<<<<<< Updated upstream
         output_folder = create_tmp_dirs(config.search.children())
         print(output_folder)
         mlflow.set_tracking_uri(config.mlflow.uri())
         mlflow.set_experiment(config.mlflow.experiment())
+=======
+        output_folder = create_tmp_dirs(config.search_children())
+        mlflow.set_tracking_uri(config.mlflow_uri())
+
+        mlflow.set_experiment(config.training().experiment)
+>>>>>>> Stashed changes
         mlflow.start_run()
 
         log_params()

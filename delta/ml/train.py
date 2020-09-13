@@ -184,11 +184,14 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
     Trains the specified model on a dataset according to a training
     specification.
     """
+
     if isinstance(model_fn, tf.keras.Model):
         model = model_fn
     else:
         with _strategy(_devices(config.general.gpus())).scope():
             model = model_fn()
+
+            print(type(model))
             assert isinstance(model, tf.keras.models.Model),\
                    "Model is not a Tensorflow Keras model"
             loss = training_spec.loss_function
@@ -233,6 +236,7 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
         #print('Using mlflow folder: ' + mlflow.get_artifact_uri())
 
     try:
+        print(callbacks)
         history = model.fit(ds,
                             epochs=training_spec.epochs,
                             callbacks=callbacks,

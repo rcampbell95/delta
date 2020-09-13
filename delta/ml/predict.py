@@ -92,7 +92,7 @@ class Predictor(ABC):
                          net_input_shape[2] / out_type.size)
         assert BATCH_SIZE > 0, 'block_size_mb too small.'
         for i in range(0, chunks.shape[0], BATCH_SIZE):
-            best[i:i+BATCH_SIZE] = self._model.predict_on_batch(chunks[i:i+BATCH_SIZE])
+            best[i:i+BATCH_SIZE] = tf.math.round(self._model.predict_on_batch(chunks[i:i+BATCH_SIZE]))
 
         retval = np.zeros(out_shape + (net_output_shape[-1],))
         for chunk_idx in range(0, best.shape[0]):
@@ -169,7 +169,7 @@ class Predictor(ABC):
         return self._complete()
 
 class LabelPredictor(Predictor):
-    """
+    """LabelPredictor
     Predicts integer labels for an image.
     """
     def __init__(self, model, output_image=None, show_progress=False, # pylint:disable=too-many-arguments
@@ -194,6 +194,7 @@ class LabelPredictor(Predictor):
         self._colormap = colormap
         self._prob_image = prob_image
         self._error_image = error_image
+        assert self._error_image is not None
         self._error_colors = error_colors
         if self._error_image:
             assert self._error_colors is not None, 'Must specify error_colors.'
