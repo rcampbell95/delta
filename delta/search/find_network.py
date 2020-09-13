@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import tempfile
 import shutil
 import os
@@ -25,15 +42,15 @@ def log_artifacts(output_folder, fittest_index):
     mlflow.log_artifact(os.path.join(output_folder, "genotype.csv"))
 
 def log_params():
-    mlflow.log_param("Grid Height", config.model_grid_height())
-    mlflow.log_param("Grid Width", config.model_grid_width())
-    mlflow.log_param("Level Back", config.model_level_back())
-    mlflow.log_param("Shape", config.autoencoder_shape())
-    mlflow.log_param("r", config.r())
-    mlflow.log_param("Children", config.search_children())
-    mlflow.log_param("Generations", config.search_generations())
-    mlflow.log_param("Fitness Metric", config.search_fitness_metric())
-    mlflow.log_param("Gamma", config.search_gamma())
+    mlflow.log_param("Grid Height", config.search.grid_height())
+    mlflow.log_param("Grid Width", config.search.grid_width())
+    mlflow.log_param("Level Back", config.search.level_back())
+    mlflow.log_param("Shape", config.search.shape())
+    mlflow.log_param("r", config.search.r())
+    mlflow.log_param("Children", config.search.children())
+    mlflow.log_param("Generations", config.search.generations())
+    mlflow.log_param("Fitness Metric", config.search.fitness_metric())
+    mlflow.log_param("Gamma", config.search.gamma())
 
 def create_tmp_dirs(num_children):
     sysTemp = tempfile.gettempdir()
@@ -52,13 +69,15 @@ def cleanup_tmp_dirs(tmp_dir):
     shutil.rmtree(tmp_dir)
 
 def find_network():
-    log = config.log_search()
+    log = config.search.log()
+
+    print(config.general.gpus())
 
     if log:
-        output_folder = create_tmp_dirs(config.search_children())
+        output_folder = create_tmp_dirs(config.search.children())
         print(output_folder)
-        mlflow.set_tracking_uri(config.mlflow_uri())
-        mlflow.set_experiment(config.training().experiment)
+        mlflow.set_tracking_uri(config.mlflow.uri())
+        mlflow.set_experiment(config.mlflow.experiment())
         mlflow.start_run()
 
         log_params()
@@ -74,23 +93,24 @@ def find_network():
     parent.join()
 
     best_history = Individual.histories()[0]
-    metric_best = min(best_history[config.search_fitness_metric()])
+    metric_best = min(best_history[config.search.fitness_metric()])
 
     if log:
         log_artifacts(output_folder, 0)
         # Log parent as baseline for best model
 
-        epoch_index = np.argmin(best_history[config.search_fitness_metric()])
+        epoch_index = np.argmin(best_history[config.search.fitness_metric()])
         for metric, value in best_history.items():
             #if "test" in metric:
             #    mlflow.log_metric(metric, value[0].item(), step=0)
             #else:
-            mlflow.log_metric(metric, value[epoch_index].item(), step=0)
+            print(value[epoch_index])
+            mlflow.log_metric(metric, value[epoch_index], step=0)
 
-    for generation in range(1, int(config.search_generations()) + 1):
+    for generation in range(1, int(config.search.generations()) + 1):
         print("\n\n\nGeneration ", generation)
 
-        children = [parent.generate_child(i) for i in range(int(config.search_children()))]
+        children = [parent.generate_child(i) for i in range(int(config.search.children()))]
 
         for child in children:
             child.start()
@@ -100,7 +120,7 @@ def find_network():
         child_histories = Individual.histories()
 
         metric_vals = list(map(lambda history: \
-                           min(history[config.search_fitness_metric()]), child_histories))
+                           min(history[config.search.fitness_metric()]), child_histories))
         idx_fittest = metric_vals.index(min(metric_vals))
 
         if metric_vals[idx_fittest] < metric_best:
@@ -112,13 +132,14 @@ def find_network():
 
             if log:
                 best_history = child_histories[idx_fittest]
-                epoch_index = np.argmin(best_history[config.search_fitness_metric()])
+                epoch_index = np.argmin(best_history[config.search.fitness_metric()])
 
                 for metric, value in best_history.items():
                     #if "test" in metric:
                     #    mlflow.log_metric(metric, value[0].item(), step=generation)
                     #else:
-                    mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
+                    print(value[epoch_index])
+                    mlflow.log_metric(metric, value[epoch_index], step=generation)
                     print("Logged {} to mlflow".format(metric))
                 try:
                     log_artifacts(output_folder, idx_fittest)
@@ -127,12 +148,12 @@ def find_network():
                     print("Artifact can't be logged!")
         else:
             if log:
-                epoch_index = np.argmin(best_history[config.search_fitness_metric()])
+                epoch_index = np.argmin(best_history[config.search.fitness_metric()])
                 for metric, value in best_history.items():
                     if "test" in metric:
-                        mlflow.log_metric(metric, value[0].item(), step=generation)
+                        mlflow.log_metric(metric, value[0], step=generation)
                     else:
-                        mlflow.log_metric(metric, value[epoch_index].item(), step=generation)
+                        mlflow.log_metric(metric, value[epoch_index], step=generation)
             print("Children were less fit than parent model. Continuing with parent for next generation")
             parent.self_mutate()
 

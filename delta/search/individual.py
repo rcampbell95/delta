@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import multiprocessing
 import os
 import copy
@@ -18,8 +35,8 @@ def assemble_dataset(train_spec):
 
     # Use wrapper class to create a Tensorflow Dataset object.
     # - The dataset will provide image chunks and corresponding labels.
-    ids = imagery_dataset.AutoencoderDataset(config.images(),
-                                             config.chunk_size(),
+    ids = imagery_dataset.AutoencoderDataset(config.dataset.images(),
+                                             config.train.network.chunk_size(),
                                              train_spec.chunk_stride)
     return ids
 
@@ -145,7 +162,7 @@ class Individual(multiprocessing.Process):
         return model
 
     def run(self):
-        train_spec = copy.deepcopy(config.training())
+        train_spec = copy.deepcopy(config.train.spec())
         train_spec.devices = self.devices
         _patience = lambda x: 10 if x > 100 else (x ** -1) * 10 **3
         train_spec.callbacks.extend([
@@ -154,11 +171,11 @@ class Individual(multiprocessing.Process):
 
         ads = assemble_dataset(train_spec)
 
-        self.input_shape = (config.chunk_size(), config.chunk_size(), ads.num_bands())
+        self.input_shape = (config.train.network.chunk_size(), config.train.network.chunk_size(), ads.num_bands())
 
         model, history = train(self.build_model, ads, train_spec)
 
-        history.history = weighted_loss(model, history.history, config.search_gamma())
+        history.history = weighted_loss(model, history.history, config.search.gamma())
 
         model_path = os.path.join(self.output_folder, str(self.child_index), "model.h5")
         model.save(model_path)

@@ -4,7 +4,7 @@ general:
   stop_on_input_error: true # If false skip past bad input files without halting training
 
 io:
-  threads:           1
+  threads:           2
   # size to load in memory at a time (width x height x bands x bit-width x chunk-size^2)
   block_size_mb:     1
   # number of different images to interleave at a time when loading
@@ -28,19 +28,19 @@ dataset:
       enabled:        true
       scale_factor:   default
     nodata_value:     ~
-    directory:        ~
-    extension:        default
+    directory:        ~/nasa/delta/bin/landsat/data_no_ground_truth
+    extension:        .tif
     file_list:        ~
     files:            ~
-  
+
   labels:
     type:             tiff
     preprocess:
       enabled:        false
       scale_factor:   default
     nodata_value:     ~
-    directory:        ~
-    extension:        default
+    directory:        ~/nasa/delta/bin/landsat/labels
+    extension:        .tif
     file_list:        ~
     files:            ~
 
@@ -69,19 +69,18 @@ dataset:
 
 train:
   network:
-    chunk_size:      16
-    output_size:     8
+    chunk_size:      8
+    output_size:     2
     model:
       yaml_file:     networks/convpool.yaml
       params:        ~
       layers:        ~
-  chunk_stride:    1
+  chunk_stride:    15
   batch_size:      100
-  steps:           10 # number of batches to train on (or ~ for all)
+  steps:           100 # number of batches to train on (or ~ for all)
   epochs:          5
   loss_function:   mse
   metrics:
-    - sparse_categorical_accuracy
   optimizer:       adam
   callbacks:       
     - ReduceLROnPlateau
@@ -114,23 +113,23 @@ train:
 
 
 search:
-  model:
-    grid_height:    10
-    grid_width:     3
-    level_back:     2
-    shape:          symmetric
-  evolution:
-    r:              0.1
-    gamma:          0.01
-    children:       1
-    generations:    100
-    fitness_metric: val_loss
+  #model:
+  grid_height:    10
+  grid_width:     3
+  level_back:     2
+  shape:          symmetric
+  #evolution:
+  r:              0.1
+  gamma:          0.01
+  children:       1
+  generations:    100
+  fitness_metric: val_loss
   log: true 
  
  
 mlflow:
   # default to ~/.local/share/delta/mlflow
-  enabled:        true
+  enabled:        false
   uri:            default
   # rate in batches to save metrics
   frequency:      10000

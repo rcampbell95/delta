@@ -81,15 +81,15 @@ class TrainingSpec:#pylint:disable=too-few-public-methods,too-many-arguments
     Options used in training by `delta.ml.train.train`.
     """
     def __init__(self, batch_size, epochs, loss_function, metrics, validation=None, steps=None,
-                 chunk_stride=1, optimizer='adam'):
+                 callbacks=None, tags=None, chunk_stride=1, optimizer='adam'):
         self.batch_size = batch_size
         self.epochs = epochs
         self.loss_function = loss_function
         self.validation = validation
         self.steps = steps
         self.metrics = metrics
-        #self.callbacks = callbacks
-        #self.tags = tags
+        self.callbacks = callbacks
+        self.tags = tags
         self.chunk_stride = chunk_stride
         self.optimizer = optimizer
 
@@ -184,6 +184,8 @@ class TrainingConfig(config.DeltaConfigComponent):
                             'Features to group into each training batch.')
         self.register_field('loss_function', (str, list), None, None, 'Keras loss function.')
         self.register_field('metrics', list, None, None, 'List of metrics to apply.')
+        self.register_field('callbacks', list, None, None, 'Keras callbacks.')
+        self.register_field('tags', list, None, None, 'Tags for run') # TODO - might be better in mlflow section
         self.register_field('steps', int, None, config.validate_positive, 'Batches to train per epoch.')
         self.register_field('optimizer', str, None, None, 'Keras optimizer to use.')
 
@@ -217,6 +219,8 @@ class TrainingConfig(config.DeltaConfigComponent):
                                            metrics=self._config_dict['metrics'],
                                            validation=validation,
                                            steps=self._config_dict['steps'],
+                                           callbacks=self._config_dict['callbacks'],
+                                           tags=self._config_dict['tags'],
                                            chunk_stride=self._config_dict['chunk_stride'],
                                            optimizer=self._config_dict['optimizer'])
         return self.__training
@@ -267,6 +271,20 @@ class TensorboardConfig(config.DeltaConfigComponent):
             tbd = os.path.join(appdirs.AppDirs('delta', 'nasa').user_data_dir, 'tensorboard')
         return tbd
 
+class SearchConfig(config.DeltaConfigComponent):
+    def __init__(self):
+        super().__init__()
+        self.register_field('grid_height', int, "grid_height", None, 'Enable Tensorboard.')
+        self.register_field('grid_width', int, "grid_width", None, 'Directory to store Tensorboard data.')
+        self.register_field('level_back', int, "level_back", None, 'Enable Tensorboard.')
+        self.register_field('shape', str, "shape", None, 'Directory to store Tensorboard data.')
+        self.register_field('r', float, "r", None, 'Enable Tensorboard.')
+        self.register_field('gamma', float, "gamma", None, 'Directory to store Tensorboard data.')
+        self.register_field('children', int, "children", None, 'Enable Tensorboard.')
+        self.register_field('generations', int, "generations", None, 'Directory to store Tensorboard data.')
+        self.register_field('fitness_metric', str, "fitness_metric", None, 'Enable Tensorboard.')
+        self.register_field('log', bool, "log", None, 'Directory to store Tensorboard data.')
+
 def register():
     """
     Registers imagery config options with the global config manager.
@@ -286,5 +304,7 @@ def register():
                                        action='store_const', const=True, type=None)
 
     config.config.register_component(TrainingConfig(), 'train')
+    config.config.register_component(SearchConfig(), 'search')
     config.config.register_component(MLFlowConfig(), 'mlflow')
     config.config.register_component(TensorboardConfig(), 'tensorboard')
+    

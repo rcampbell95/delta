@@ -35,6 +35,10 @@ def main_mlflow_ui(options):
     from .import mlflow_ui
     mlflow_ui.main(options)
 
+def main_search(options):
+    from . import search
+    search.main(options)
+
 def setup_classify(subparsers):
     sub = subparsers.add_parser('classify', help='Classify images given a model.')
     config.setup_arg_parser(sub, ['general', 'io', 'dataset'])
@@ -49,12 +53,21 @@ def setup_classify(subparsers):
 
 def setup_train(subparsers):
     sub = subparsers.add_parser('train', help='Train a task-specific classifier.')
-    config.setup_arg_parser(sub)
+    config.setup_arg_parser(sub, [])
     sub.add_argument('--autoencoder', action='store_true',
                      help='Train autoencoder (ignores labels).')
     sub.add_argument('--resume', help='Use the model as a starting point for the training.')
     sub.add_argument('model', nargs='?', default=None, help='File to save the network to.')
     sub.set_defaults(function=main_train)
+
+def setup_search(subparsers):
+    sub = subparsers.add_parser('search', help='Search for a feature representation')
+    config.setup_arg_parser(sub, [])
+
+    sub.add_argument('model', help='Path to save the network to.')
+
+
+    sub.set_defaults(function=main_search)
 
 def setup_mlflow_ui(subparsers):
     sub = subparsers.add_parser('mlflow_ui', help='Launch mlflow user interface to visualize run history.')
@@ -62,5 +75,4 @@ def setup_mlflow_ui(subparsers):
 
     sub.set_defaults(function=main_mlflow_ui)
 
-
-SETUP_COMMANDS = [setup_train, setup_classify, setup_mlflow_ui]
+SETUP_COMMANDS = [setup_train, setup_classify, setup_search, setup_mlflow_ui]

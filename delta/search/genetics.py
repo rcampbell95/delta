@@ -1,3 +1,20 @@
+# Copyright © 2020, United States Government, as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All rights reserved.
+#
+# The DELTA (Deep Earth Learning, Tools, and Analysis) platform is
+# licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import copy
 
 import numpy as np
@@ -22,8 +39,8 @@ class Gene:
         self.params = self.define_gene()
 
         self.node_id = node_id
-        self.rows = int(config.model_grid_height())
-        self.level_back = int(config.model_level_back())
+        self.rows = int(config.search.grid_height())
+        self.level_back = int(config.search.level_back())
         self.conn = -1
 
         self.random_init()
@@ -95,10 +112,10 @@ class Gene:
 
 class Genotype:
     def __init__(self, genes=False):
-        self.height = int(config.model_grid_height())
-        self.width = int(config.model_grid_width())
+        self.height = int(config.search.grid_height())
+        self.width = int(config.search.grid_width())
         self.n_genes = self.height * self.width + 1
-        self.mutation_rate = float(config.r())
+        self.mutation_rate = float(config.search.r())
 
         if not genes:
             self.genes = [Gene(i) for i in range(self.n_genes)]

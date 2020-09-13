@@ -40,5 +40,6 @@ def main(args):
         parser.print_help(sys.stderr)
         sys.exit(1)
 
+    print(config)
     config.initialize(options)
     return options.function(options)
