@@ -15,16 +15,17 @@ import tensorflow as tf
 
 from delta.imagery import imagery_dataset
 from delta.config import config
+import delta.config.modules
 from delta.ml import train
 
 def assemble_dataset():
-    tc = config.training()
-    images = config.images()
-    labels = config.labels()
+    tc = config.train.spec()
+    images = config.dataset.images()
+    labels = config.dataset.labels()
 
     ids = imagery_dataset.ImageryDataset(images, labels,
-                                         config.chunk_size(),
-                                         config.output_size(),
+                                         config.train.network.chunk_size(),
+                                         config.train.network.output_size(),
                                          tc.chunk_stride)
 
     return ids
@@ -72,8 +73,8 @@ class Classifier(multiprocessing.Process):
             x = Dense(64, name="dense_2", activation="relu")(x)
             x = BatchNormalization(name="batch_norm_3")(x)
             
-            x = Dense((config.output_size() ** 2) * 1)(x)
-            x = Reshape((config.output_size(), config.output_size(), 1))(x)
+            x = Dense((config.train.network.output_size() ** 2) * 1)(x)
+            x = Reshape((config.train.network.output_size(), config.train.network.output_size(), 1))(x)
             x = Activation("sigmoid", name="activation_out")(x)
             #x = Softmax(name="softmax_out", axis=-1)(x)
 
@@ -103,6 +104,10 @@ class Classifier(multiprocessing.Process):
         self.train_spec.callbacks = [tf.keras.callbacks.ReduceLROnPlateau(factor=.9, verbose=1)]
 
         train.train(self.build_model, ids, self.train_spec)
+
+delta.config.modules.register_all()
+config.initialize(None)
+
 
 usage  = "usage: test_classification.py [options]"
 parser = argparse.ArgumentParser(usage=usage)
@@ -143,7 +148,7 @@ for run_id in run_info[run_id_key]:
         print(model_path)
         assert os.path.exists(model_path)
 
-        ts = copy.deepcopy(config.training())
+        ts = copy.deepcopy(config.train.spec())
 
         ts.model_path = model_path
         ts.strategy = strategy
@@ -158,7 +163,7 @@ for run_id in run_info[run_id_key]:
 
     for proc in procs:
         proc.start()
-        # proc.join()
-        time.sleep(20)
+        #proc.join()
+        time.sleep(10)
     for proc in procs:
         proc.join()
