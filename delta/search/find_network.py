@@ -24,12 +24,12 @@ import numpy as np
 
 import tensorflow.keras as keras
 
+from delta.config import config
 from delta.search.individual import Individual
 
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-from delta.config import config
 
 def log_artifacts(output_folder, fittest_index):
     output_folder = os.path.join(output_folder, str(fittest_index))
@@ -74,17 +74,9 @@ def find_network():
     print(config.general.gpus())
 
     if log:
-<<<<<<< Updated upstream
         output_folder = create_tmp_dirs(config.search.children())
-        print(output_folder)
         mlflow.set_tracking_uri(config.mlflow.uri())
         mlflow.set_experiment(config.mlflow.experiment())
-=======
-        output_folder = create_tmp_dirs(config.search_children())
-        mlflow.set_tracking_uri(config.mlflow_uri())
-
-        mlflow.set_experiment(config.training().experiment)
->>>>>>> Stashed changes
         mlflow.start_run()
 
         log_params()
