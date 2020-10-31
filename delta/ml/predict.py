@@ -205,6 +205,10 @@ class LabelPredictor(Predictor):
     def _initialize(self, shape, label, image):
         net_output_shape = self._model.output_shape[1:]
         self._num_classes = net_output_shape[-1]
+
+        if self._num_classes == 1:
+            self._num_classes = 2
+
         if self._prob_image:
             self._prob_image.initialize((shape[0], shape[1], self._num_classes), np.float32, image.metadata())
 
@@ -247,15 +251,29 @@ class LabelPredictor(Predictor):
             self._error_image.abort()
 
     def _process_block(self, pred_image, x, y, labels, label_nodata):
+        net_output_shape = self._model.output_shape[1:]
+
         if self._prob_image is not None:
             self._prob_image.write(pred_image, x, y)
         prob_image = pred_image
-        pred_image = np.argmax(pred_image, axis=2)
+        first_count = np.count_nonzero(pred_image >= 0.5)
 
+        if net_output_shape[-1] == 1:
+            pred_image = pred_image >= 0.5
+            pred_image = np.squeeze(pred_image).astype(int)
+        else:
+            pred_image = np.argmax(pred_image, axis=2)
+#
+#        try: 
+#            assert np.count_nonzero(pred_image >= 0.5) == first_count
+#        except:
+#            print(first_count, np.count_nonzero(pred_image >= 0.5))
+#
         # nodata pixels were set to -inf in the probability image
         pred_image[prob_image[:, :, 0] == -math.inf] = -1
 
         if labels is not None:
+            #print(labels.shape, pred_image.shape)
             incorrect = (labels != pred_image).astype(int)
 
             valid_labels = labels
@@ -279,6 +297,8 @@ class LabelPredictor(Predictor):
                 colormap[0:-1, :] = self._colormap
                 if labels is not None and label_nodata is not None:
                     pred_image[pred_image == -1] = self._colormap.shape[0]
+
+                #print(colormap.shape, pred_image.shape)
                 self._output_image.write(colormap[pred_image], x, y)
             else:
                 self._output_image.write(pred_image, x, y)
