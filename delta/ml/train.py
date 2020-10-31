@@ -125,11 +125,12 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
 
     def on_train_batch_end(self, batch, logs=None):
         self.batch = batch
+
         if batch % config.mlflow.frequency() == 0:
             for k in logs.keys():
                 if k in ('batch', 'size'):
                     continue
-                mlflow.log_metric(k, logs[k], step=batch)
+                mlflow.log_metric(k, logs[k].item(), step=self.epoch)
         if config.mlflow.checkpoints.frequency() and batch % config.mlflow.checkpoints.frequency() == 0:
             filename = os.path.join(self.temp_dir, '%d.h5' % (batch))
             save_model(self.model, filename)
@@ -144,12 +145,12 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
         for k in logs.keys():
             if k in ('batch', 'size'):
                 continue
-            mlflow.log_metric('validation_' + k, logs[k].item())
+            mlflow.log_metric('validation_' + k, logs[k].item(), self.epoch)
 
 def _mlflow_train_setup(model, dataset, training_spec):
     mlflow.set_tracking_uri(config.mlflow.uri())
     mlflow.set_experiment(config.mlflow.experiment())
-    mlflow.start_run()
+    mlflow.start_run(nested=True)
     _log_mlflow_params(model, dataset, training_spec)
     if training_spec.tags is not None:
         mlflow.set_tags(training_spec.tags)
@@ -215,7 +216,7 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
 
     (ds, validation) = _prep_datasets(dataset, training_spec, chunk_size, output_shape[1])
 
-    callbacks = [tf.keras.callbacks.TerminateOnNaN()]
+    callbacks = [tf.keras.callbacks.TerminateOnNaN(), tf.keras.callbacks.ReduceLROnPlateau()]
     # add callbacks from DeltaLayers
     for l in model.layers:
         if isinstance(l, DeltaLayer):
@@ -236,7 +237,6 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
         #print('Using mlflow folder: ' + mlflow.get_artifact_uri())
 
     try:
-        print(callbacks)
         history = model.fit(ds,
                             epochs=training_spec.epochs,
                             callbacks=callbacks,
