@@ -29,42 +29,13 @@ import yaml
 from delta.imagery.imagery_config import ImageSet, ImageSetConfig, load_images_labels
 import delta.config as config
 
-def loss_function_factory(loss_spec):
-    '''
-    loss_function_factory - Creates a loss function object, if an object is specified in the
-    config file, or a string if that is all that is specified.
-
-    :param: loss_spec Specification of the loss function.  Either a string that is compatible
-    with the keras interface (e.g. 'categorical_crossentropy') or an object defined by a dict
-    of the form {'LossFunctionName': {'arg1':arg1_val, ...,'argN',argN_val}}
-    '''
-    import tensorflow.keras.losses # pylint: disable=import-outside-toplevel
-
-    if isinstance(loss_spec, str):
-        return loss_spec
-
-    if isinstance(loss_spec, list):
-        assert len(loss_spec) == 1, 'Too many loss functions specified'
-        assert isinstance(loss_spec[0], dict), '''Loss functions objects and parameters must
-                                                  be specified as a yaml dictionary object
-                                                  '''
-        assert len(loss_spec[0].keys()) == 1, f'Too many loss functions specified: {dict.keys()}'
-        loss_type = list(loss_spec[0].keys())[0]
-        loss_fn_args = loss_spec[0][loss_type]
-
-        loss_class = getattr(tensorflow.keras.losses, loss_type, None)
-        return loss_class(**loss_fn_args)
-
-    raise RuntimeError(f'Did not recognize the loss function specification: {loss_spec}')
-
-
 class ValidationSet:#pylint:disable=too-few-public-methods
     """
     Specifies the images and labels in a validation set.
     """
     def __init__(self, images=None, labels=None, from_training=False, steps=1000):
         """
-        Uses the specified `delta.imagery.sources.ImageSet`s images and labels.
+        Uses the specified `delta.imagery.imagery_config.ImageSet`s images and labels.
 
         If `from_training` is `True`, instead takes samples from the training set
         before they are used for training.
@@ -80,11 +51,11 @@ class TrainingSpec:#pylint:disable=too-few-public-methods,too-many-arguments
     """
     Options used in training by `delta.ml.train.train`.
     """
-    def __init__(self, batch_size, epochs, loss_function, metrics, validation=None, steps=None,
-                 callbacks=None, tags=None, chunk_stride=1, optimizer='adam'):
+    def __init__(self, batch_size, epochs, loss, metrics, validation=None, steps=None,
+                 tags=None, chunk_stride=1, optimizer='Adam'):
         self.batch_size = batch_size
         self.epochs = epochs
-        self.loss_function = loss_function
+        self.loss = loss
         self.validation = validation
         self.steps = steps
         self.metrics = metrics
@@ -123,13 +94,6 @@ class NetworkModelConfig(config.DeltaConfigComponent):
 class NetworkConfig(config.DeltaConfigComponent):
     def __init__(self):
         super().__init__()
-        self.register_field('chunk_size', int, 'chunk_size', config.validate_positive,
-                            'Width of an image chunk to input to the neural network.')
-        self.register_field('output_size', int, 'output_size', config.validate_positive,
-                            'Width of an image chunk to output from the neural network.')
-
-        self.register_arg('chunk_size', '--chunk-size')
-        self.register_arg('output_size', '--output-size')
         self.register_component(NetworkModelConfig(), 'model')
 
     def setup_arg_parser(self, parser, components = None) -> None:
@@ -182,13 +146,12 @@ class TrainingConfig(config.DeltaConfigComponent):
                             'Number of times to repeat training on the dataset.')
         self.register_field('batch_size', int, None, config.validate_positive,
                             'Features to group into each training batch.')
-        self.register_field('loss_function', (str, list), None, None, 'Keras loss function.')
+        self.register_field('loss', (str, dict), None, None, 'Keras loss function.')
         self.register_field('metrics', list, None, None, 'List of metrics to apply.')
-        self.register_field('callbacks', list, None, None, 'Keras callbacks.')
         self.register_field('tags', list, None, None, 'Tags for run') # TODO - might be better in mlflow section
-        self.register_field('steps', int, None, config.validate_positive, 'Batches to train per epoch.')
-        self.register_field('optimizer', str, None, None, 'Keras optimizer to use.')
-
+        self.register_field('steps', int, None, config.validate_non_negative, 'Batches to train per epoch.')
+        self.register_field('optimizer', (str, dict), None, None, 'Keras optimizer to use.')
+        self.register_field('callbacks', list, 'callbacks', None, 'Callbacks used to modify training')
         self.register_arg('chunk_stride', '--chunk-stride')
         self.register_arg('epochs', '--epochs')
         self.register_arg('batch_size', '--batch-size')
@@ -212,10 +175,9 @@ class TrainingConfig(config.DeltaConfigComponent):
             if not from_training:
                 (vimg, vlabels) = (self._components['validation'].images(), self._components['validation'].labels())
             validation = ValidationSet(vimg, vlabels, from_training, vsteps)
-            loss_fn = loss_function_factory(self._config_dict['loss_function'])
             self.__training = TrainingSpec(batch_size=self._config_dict['batch_size'],
                                            epochs=self._config_dict['epochs'],
-                                           loss_function=loss_fn,
+                                           loss=self._config_dict['loss'],
                                            metrics=self._config_dict['metrics'],
                                            validation=validation,
                                            steps=self._config_dict['steps'],
@@ -287,21 +249,12 @@ class SearchConfig(config.DeltaConfigComponent):
 
 def register():
     """
-    Registers imagery config options with the global config manager.
+    Registers machine learning config options with the global config manager.
 
     The arguments enable command line arguments for different components.
     """
-    if not hasattr(config.config, 'general'):
-        config.config.register_component(config.DeltaConfigComponent('General'), 'general')
-
     config.config.general.register_field('gpus', int, 'gpus', None, 'Number of gpus to use.')
     config.config.general.register_arg('gpus', '--gpus')
-    config.config.general.register_field('stop_on_input_error', bool, 'stop_on_input_error', None,
-                                         'If false, skip past bad input images.')
-    config.config.general.register_arg('stop_on_input_error', '--bypass-input-errors',
-                                       action='store_const', const=False, type=None)
-    config.config.general.register_arg('stop_on_input_error', '--stop-on-input-error',
-                                       action='store_const', const=True, type=None)
 
     config.config.register_component(TrainingConfig(), 'train')
     config.config.register_component(SearchConfig(), 'search')

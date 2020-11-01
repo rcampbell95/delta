@@ -21,13 +21,11 @@ Block-aligned reading from multiple Geotiff files.
 import os
 import math
 
-from osgeo import gdal
 import numpy as np
+from osgeo import gdal
 
 from delta.config import config
-from delta.imagery import rectangle
-
-from . import delta_image
+from delta.imagery import delta_image, rectangle
 
 class TiffImage(delta_image.DeltaImage):
     """For geotiffs."""
@@ -152,6 +150,7 @@ class TiffImage(delta_image.DeltaImage):
         return results.get(self.data_type(band))
 
     def block_size(self):
+        """Returns (block height, block width)"""
         (bs, _) = self.block_info()
         return bs
 
@@ -161,8 +160,8 @@ class TiffImage(delta_image.DeltaImage):
         band_handle = self._gdal_band(band)
         block_size = band_handle.GetBlockSize()
 
-        num_blocks_x = int(math.ceil(self.height() / block_size[1]))
-        num_blocks_y = int(math.ceil(self.width() / block_size[0]))
+        num_blocks_x = int(math.ceil(self.width()  / block_size[0]))
+        num_blocks_y = int(math.ceil(self.height() / block_size[1]))
 
         # we are backwards from gdal I think
         return ((block_size[1], block_size[0]), (num_blocks_x, num_blocks_y))
@@ -216,23 +215,22 @@ class TiffImage(delta_image.DeltaImage):
     def save(self, path, tile_size=(0,0), nodata_value=None, show_progress=False):
         """
         Save a TiffImage to the file output_path, optionally overwriting the tile_size.
+        Input tile size is (width, height)
         """
 
         if nodata_value is None:
             nodata_value = self.nodata_value()
         # Use the input tile size for the block size unless the user specified one.
-        (bs, _) = self.block_info()
-        block_size_x = bs[0]
-        block_size_y = bs[1]
+        block_size_y, block_size_x = self.block_size()
         if tile_size[0] > 0:
             block_size_x = tile_size[0]
         if tile_size[1] > 0:
             block_size_y = tile_size[1]
 
         # Set up the output image
-        with TiffWriter(path, self.width(), self.height(), self.num_bands(),
-                        self.data_type(), block_size_x, block_size_y,
-                        nodata_value, self.metadata()) as writer:
+        with _TiffWriter(path, self.width(), self.height(), self.num_bands(),
+                         self.data_type(), block_size_x, block_size_y,
+                         nodata_value, self.metadata()) as writer:
             input_bounds = rectangle.Rectangle(0, 0, width=self.width(), height=self.height())
             output_rois = input_bounds.make_tile_rois(block_size_x, block_size_y, include_partials=True)
 
@@ -293,9 +291,9 @@ def write_tiff(output_path, data, metadata=None):
 
     TILE_SIZE=256
 
-    with TiffWriter(output_path, data.shape[0], data.shape[1], num_bands=num_bands,
-                    data_type=data_type, metadata=metadata, tile_width=min(TILE_SIZE, data.shape[0]),
-                    tile_height=min(TILE_SIZE, data.shape[1])) as writer:
+    with _TiffWriter(output_path, data.shape[0], data.shape[1], num_bands=num_bands,
+                     data_type=data_type, metadata=metadata, tile_width=min(TILE_SIZE, data.shape[0]),
+                     tile_height=min(TILE_SIZE, data.shape[1])) as writer:
         for x in range(0, data.shape[0], TILE_SIZE):
             for y in range(0, data.shape[1], TILE_SIZE):
                 block = (x // TILE_SIZE, y // TILE_SIZE)
@@ -305,8 +303,9 @@ def write_tiff(output_path, data, metadata=None):
                     for b in range(num_bands):
                         writer.write_block(data[x:x+TILE_SIZE, y:y+TILE_SIZE, b], block[0], block[1], b)
 
-class TiffWriter:
-    """Class to manage block writes to a Geotiff file.
+class _TiffWriter:
+    """
+    Class to manage block writes to a Geotiff file. Internal helper class.
     """
     def __init__(self, path, width, height, num_bands=1, data_type=gdal.GDT_Byte, #pylint:disable=too-many-arguments
                  tile_width=256, tile_height=256, nodata_value=None, metadata=None):
@@ -318,8 +317,8 @@ class TiffWriter:
 
         # Constants
         options = ['COMPRESS=LZW', 'BigTIFF=IF_SAFER', 'INTERLEAVE=BAND']
-        options += ['BLOCKXSIZE='+str(self._tile_height),
-                    'BLOCKYSIZE='+str(self._tile_width)]
+        options += ['BLOCKXSIZE='+str(self._tile_width),
+                    'BLOCKYSIZE='+str(self._tile_height)]
         MIN_SIZE_FOR_TILES=100
         if width > MIN_SIZE_FOR_TILES or height > MIN_SIZE_FOR_TILES:
             options += ['TILED=YES']
@@ -413,7 +412,7 @@ class TiffWriter:
             assert gdal_band
             gdal_band.WriteArray(data[:, :, band], y, x)
 
-class DeltaTiffWriter(delta_image.DeltaImageWriter):
+class TiffWriter(delta_image.DeltaImageWriter):
     def __init__(self, filename):
         self._filename = filename
         self._tiff_w = None
@@ -424,10 +423,10 @@ class DeltaTiffWriter(delta_image.DeltaImageWriter):
         """
         assert (len(size) == 3), ('Error: len(size) of '+str(size)+' != 3')
         TILE_SIZE = 256
-        self._tiff_w = TiffWriter(self._filename, size[0], size[1], num_bands=size[2],
-                                  data_type=numpy_dtype_to_gdal_type(numpy_dtype), metadata=metadata,
-                                  nodata_value=nodata_value,
-                                  tile_width=min(TILE_SIZE, size[0]), tile_height=min(TILE_SIZE, size[1]))
+        self._tiff_w = _TiffWriter(self._filename, size[0], size[1], num_bands=size[2],
+                                   data_type=numpy_dtype_to_gdal_type(numpy_dtype), metadata=metadata,
+                                   nodata_value=nodata_value,
+                                   tile_width=min(TILE_SIZE, size[0]), tile_height=min(TILE_SIZE, size[1]))
 
     def write(self, data, x, y):
         """

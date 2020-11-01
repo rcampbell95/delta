@@ -23,11 +23,8 @@ import math
 import zipfile
 import functools
 import os
-import sys
 import numpy as np
 import portalocker
-
-import tensorflow as tf
 
 from delta.config import config
 from delta.imagery import utilities
@@ -51,11 +48,11 @@ def _get_files_from_unpack_folder(folder):
     main_files   = os.listdir(folder)
     vendor_files = os.listdir(vendor_folder)
     for f in vendor_files:
-        if os.path.splitext(f)[1] == '.IMD':
+        if os.path.splitext(f)[1].lower() == '.imd':
             imd_path = os.path.join(vendor_folder, f)
             break
     for f in main_files:
-        if os.path.splitext(f)[1] == '.tif':
+        if os.path.splitext(f)[1].lower() == '.tif':
             tif_path = os.path.join(folder, f)
             break
     return (tif_path, imd_path)
@@ -76,12 +73,9 @@ class WorldviewImage(tiff.TiffImage):
             (tif_path, imd_path) = _get_files_from_unpack_folder(unpack_folder)
 
             if imd_path and tif_path:
-                #tf.print('Already have unpacked files in ' + unpack_folder,
-                #         output_stream=sys.stdout)
                 pass
             else:
-                tf.print('Unpacking file ' + paths + ' to folder ' + unpack_folder,
-                         output_stream=sys.stdout)
+                print('Unpacking file ' + paths + ' to folder ' + unpack_folder)
                 utilities.unpack_to_folder(paths, unpack_folder)
                 # some worldview zip files have a subdirectory with the name of the image
                 if not os.path.exists(os.path.join(unpack_folder, 'vendor_metadata')):
@@ -106,7 +100,7 @@ class WorldviewImage(tiff.TiffImage):
         assert '.zip' in ext, f'Error: Was assuming a zip file. Found {paths}'
 
         zip_file = zipfile.ZipFile(paths, 'r')
-        tif_names = list(filter(lambda x: '.tif' in x, zip_file.namelist()))
+        tif_names = list(filter(lambda x: x.endswith('.tif') or x.endswith('.TIF'), zip_file.namelist()))
         assert len(tif_names) > 0, f'Error: no tif files in the file {paths}'
         assert len(tif_names) == 1, f'Error: too many tif files in {paths}: {tif_names}'
         tif_name = tif_names[0]

@@ -27,7 +27,6 @@ import numpy as np
 import tensorflow as tf
 
 from delta.imagery import rectangle
-from delta.config import config
 
 #pylint: disable=unsubscriptable-object
 # Pylint was barfing lines 32 and 76. See relevant bug report
@@ -76,7 +75,7 @@ class Predictor(ABC):
         if net_input_shape[0] is None and net_input_shape[1] is None:
             result = np.squeeze(self._model.predict_on_batch(image))
             if image_nodata_value is not None:
-                result[data[:, :, 0] == image_nodata_value, :] = -math.inf
+                result[data[:, :, 0] == image_nodata_value, :] = math.nan
             return result
 
         out_shape = (data.shape[0] - net_input_shape[0] + net_output_shape[0],
@@ -88,9 +87,9 @@ class Predictor(ABC):
         chunks = tf.reshape(chunks, (-1,) + net_input_shape)
 
         best = np.zeros((chunks.shape[0],) + net_output_shape, dtype=out_type.as_numpy_dtype)
-        BATCH_SIZE = int(config.io.block_size_mb() * 1024 * 1024 / net_input_shape[0] / net_input_shape[1] /
-                         net_input_shape[2] / out_type.size)
-        assert BATCH_SIZE > 0, 'block_size_mb too small.'
+        # do 8 MB at a time... this is arbitrary, may want to change in future
+        BATCH_SIZE = max(1, int(8 * 1024 * 1024 / net_input_shape[0] / net_input_shape[1] /
+                            net_input_shape[2] / out_type.size))
         for i in range(0, chunks.shape[0], BATCH_SIZE):
             best[i:i+BATCH_SIZE] = tf.math.round(self._model.predict_on_batch(chunks[i:i+BATCH_SIZE]))
 
@@ -104,7 +103,7 @@ class Predictor(ABC):
             ox = (data.shape[0] - out_shape[0]) // 2
             oy = (data.shape[1] - out_shape[1]) // 2
             output_slice = data[ox:-ox, oy:-oy, 0]
-            retval[output_slice == image_nodata_value] = -math.inf
+            retval[output_slice == image_nodata_value] = math.nan
 
         return retval
 
@@ -269,8 +268,8 @@ class LabelPredictor(Predictor):
 #        except:
 #            print(first_count, np.count_nonzero(pred_image >= 0.5))
 #
-        # nodata pixels were set to -inf in the probability image
-        pred_image[prob_image[:, :, 0] == -math.inf] = -1
+        # nodata pixels were set to nan in the probability image
+        pred_image[prob_image[:, :, 0] == math.nan] = -1
 
         if labels is not None:
             #print(labels.shape, pred_image.shape)

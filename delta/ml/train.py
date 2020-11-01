@@ -19,18 +19,34 @@
 Train neural networks.
 """
 
+import datetime
 import os
 import tempfile
 import shutil
 
 import mlflow
+import numpy as np
 import tensorflow as tf
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Layer
 
 from delta.config import config
 from delta.imagery.imagery_dataset import ImageryDataset
 from delta.imagery.imagery_dataset import AutoencoderDataset
-from .layers import DeltaLayer
 from .io import save_model
+from .config_parser import config_callbacks, loss_from_dict, metric_from_dict, optimizer_from_dict
+
+class DeltaLayer(Layer):
+    """
+    Network layer class with extra features specific to DELTA.
+
+    Extentds `tensorflow.keras.layers.Layer`.
+    """
+    def callback(self): # pylint:disable=no-self-use
+        """
+        Returns a Keras callback to be added, or None.
+        """
+        return None
 
 def _devices(num_gpus):
     '''
@@ -62,53 +78,75 @@ def _strategy(devices):
 
 def _prep_datasets(ids, tc, chunk_size, output_size):
     ds = ids.dataset(config.dataset.classes.weights())
-    ds = ds.batch(tc.batch_size)
-    #ds = ds.cache()
-    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+
+    validation=None
     if tc.validation:
         if tc.validation.from_training:
             validation = ds.take(tc.validation.steps)
             ds = ds.skip(tc.validation.steps)
         else:
-            vimg = tc.validation.images
+            vimg   = tc.validation.images
             vlabel = tc.validation.labels
             if not vimg:
                 validation = None
             else:
                 if vlabel:
-                    vimagery = ImageryDataset(vimg, vlabel, chunk_size, output_size, tc.chunk_stride,
-                                              resume_mode=False)
+                    vimagery = ImageryDataset(vimg, vlabel, output_size, chunk_size,
+                                              tile_size=config.io.tile_size(), chunk_stride=tc.chunk_stride)
                 else:
-                    vimagery = AutoencoderDataset(vimg, chunk_size, tc.chunk_stride, resume_mode=False)
-                validation = vimagery.dataset(config.dataset.classes.weights()).batch(tc.batch_size)
+                    vimagery = AutoencoderDataset(vimg, chunk_size, tile_size=config.io.tile_size(),
+                                                  chunk_stride=tc.chunk_stride)
+                validation = vimagery.dataset(config.dataset.classes.weights())
                 if tc.validation.steps:
                     validation = validation.take(tc.validation.steps)
-        #validation = validation.prefetch(4)#tf.data.experimental.AUTOTUNE)
+        if validation:
+            validation = validation.batch(tc.batch_size)
     else:
-
         validation = None
+
+    ds = ds.batch(tc.batch_size)
+    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
     if tc.steps:
         ds = ds.take(tc.steps)
-    #ds = ds.prefetch(4)#tf.data.experimental.AUTOTUNE)
     ds = ds.repeat(tc.epochs)
     return (ds, validation)
 
 def _log_mlflow_params(model, dataset, training_spec):
     images = dataset.image_set()
     #labels = dataset.label_set()
-    mlflow.log_param('Image Type',   images.type())
-    mlflow.log_param('Preprocess',   images.preprocess())
-    mlflow.log_param('Number of Images',   len(images))
-    mlflow.log_param('Chunk Size',   dataset.chunk_size())
-    mlflow.log_param('Chunk Stride', training_spec.chunk_stride)
-    mlflow.log_param('Output Shape',   dataset.output_shape())
-    mlflow.log_param('Steps', training_spec.steps)
-    mlflow.log_param('Loss Function', training_spec.loss_function)
-    mlflow.log_param('Epochs', training_spec.epochs)
-    mlflow.log_param('Batch Size', training_spec.batch_size)
-    mlflow.log_param('Optimizer', training_spec.optimizer)
-    mlflow.log_param('Model Layers', len(model.layers))
+    mlflow.log_param('Images - Type',   images.type())
+    mlflow.log_param('Images - Count',   len(images))
+    mlflow.log_param('Images - Stride', training_spec.chunk_stride)
+    mlflow.log_param('Images - Tile Size', len(model.layers))
+    mlflow.log_param('Train - Steps', training_spec.steps)
+    mlflow.log_param('Train - Loss Function', training_spec.loss)
+    mlflow.log_param('Train - Epochs', training_spec.epochs)
+    mlflow.log_param('Train - Batch Size', training_spec.batch_size)
+    mlflow.log_param('Train - Optimizer', training_spec.optimizer)
+    mlflow.log_param('Model - Layers', len(model.layers))
+    mlflow.log_param('Model - Parameters - Non-Trainable',
+                     np.sum([K.count_params(w) for w in model.non_trainable_weights]))
+    mlflow.log_param('Model - Parameters - Trainable',
+                     np.sum([K.count_params(w) for w in model.trainable_weights]))
+    mlflow.log_param('Model - Shape - Output',   dataset.output_shape())
+    mlflow.log_param('Model - Shape - Input',   dataset.input_shape())
     #mlflow.log_param('Status', 'Running') Illegal to change the value!
+
+class _EpochResetCallback(tf.keras.callbacks.Callback):
+    """
+    Reset imagery_dataset file counts on epoch end
+    """
+    def __init__(self, ids, stop_epoch):
+        super().__init__()
+        self.ids = ids
+        self.last_epoch = stop_epoch - 1
+
+    def on_epoch_end(self, epoch, _=None):
+        if config.general.verbose():
+            print('Finished epoch ' + str(epoch))
+        # Leave the counts from the last epoch just as a record
+        if epoch != self.last_epoch:
+            self.ids.reset_access_counts()
 
 class _MLFlowCallback(tf.keras.callbacks.Callback):
     """
@@ -120,8 +158,13 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
         self.batch = 0
         self.temp_dir = temp_dir
 
-    def on_epoch_end(self, epoch, _=None):
+    def on_epoch_end(self, epoch, logs=None):
         self.epoch = epoch
+        for k in logs.keys():
+            if k.startswith('val_'):
+                mlflow.log_metric('Validation ' + k[4:], logs[k], epoch)
+            else:
+                mlflow.log_metric('Epoch ' + k, logs[k], epoch)
 
     def on_train_batch_end(self, batch, logs=None):
         self.batch = batch
@@ -141,12 +184,6 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
             mlflow.log_artifact(filename, 'checkpoints')
             os.remove(filename)
 
-    def on_test_batch_end(self, _, logs=None): # pylint:disable=no-self-use
-        for k in logs.keys():
-            if k in ('batch', 'size'):
-                continue
-            mlflow.log_metric('validation_' + k, logs[k].item(), self.epoch)
-
 def _mlflow_train_setup(model, dataset, training_spec):
     mlflow.set_tracking_uri(config.mlflow.uri())
     mlflow.set_experiment(config.mlflow.experiment())
@@ -164,30 +201,56 @@ def _mlflow_train_setup(model, dataset, training_spec):
 
     return _MLFlowCallback(temp_dir)
 
-def _callbacks_setup(callbacks):
-    _callbacks = []
-
-    if callbacks is not None:
-        for callback in callbacks:
-            if isinstance(callback, str) and hasattr(tf.keras.callbacks, callback):
-                callback_class = getattr(tf.keras.callbacks, callback)
-                _callbacks.append(callback_class())
-            elif isinstance(callback, tf.keras.callbacks.Callback):
-                _callbacks.append(callback)
-
-
-    return _callbacks
-
-
-
-def train(model_fn, dataset : ImageryDataset, training_spec):
+def _build_callbacks(model, dataset, training_spec):
     """
-    Trains the specified model on a dataset according to a training
-    specification.
-    """
+    Create callbacks needed based on configuration.
 
+    Returns (list of callbacks, mlflow callback).
+    """
+    callbacks = [tf.keras.callbacks.TerminateOnNaN()]
+    # add callbacks from DeltaLayers
+    for l in model.layers:
+        if isinstance(l, DeltaLayer):
+            c = l.callback()
+            if c:
+                callbacks.append(c)
+
+    mcb = None
+    if config.mlflow.enabled():
+        mcb = _mlflow_train_setup(model, dataset, training_spec)
+        callbacks.append(mcb)
+        if config.general.verbose():
+            print('Using mlflow folder: ' + mlflow.get_artifact_uri())
+
+    if config.tensorboard.enabled():
+        tb_dir = config.tensorboard.dir()
+        if config.mlflow.enabled():
+            tb_dir = os.path.join(tb_dir, str(mlflow.active_run().info.run_id))
+            mlflow.log_param('TensorBoard Directory', tb_dir)
+        else:
+            tb_dir = os.path.join(tb_dir, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+        tcb = tf.keras.callbacks.TensorBoard(log_dir=tb_dir,
+                                             update_freq='epoch',
+                                             histogram_freq=1,
+                                             write_images=True,
+                                             embeddings_freq=1)
+        callbacks.append(tcb)
+
+    callbacks.append(_EpochResetCallback(dataset, training_spec.epochs))
+
+    callbacks.extend(config_callbacks())
+
+    return (callbacks, mcb)
+
+def _compile_model(model_fn, dataset, training_spec):
+    """
+    Compile and check that the model is valid.
+    """
+    # This does not work when using the CPU!
     if isinstance(model_fn, tf.keras.Model):
         model = model_fn
+        print('WARNING: Model loaded without TF strategy/device wrapper, this may fail in some configurations!')
+        # May not be able to improve on this until tf 2.2
     else:
         with _strategy(_devices(config.general.gpus())).scope():
             model = model_fn()
@@ -195,14 +258,12 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
             print(type(model))
             assert isinstance(model, tf.keras.models.Model),\
                    "Model is not a Tensorflow Keras model"
-            loss = training_spec.loss_function
-            # TODO: specify learning rate and optimizer parameters, change learning rate over time
-            model.compile(optimizer=training_spec.optimizer, loss=loss,
-                          metrics=training_spec.metrics)
+            model.compile(optimizer=optimizer_from_dict(training_spec.optimizer),
+                          loss=loss_from_dict(training_spec.loss),
+                          metrics=[metric_from_dict(m) for m in training_spec.metrics])
 
     input_shape = model.input_shape
     output_shape = model.output_shape
-    chunk_size = input_shape[1]
 
     assert len(input_shape) == 4, 'Input to network is wrong shape.'
     assert input_shape[0] is None, 'Input is not batched.'
@@ -214,36 +275,42 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
     assert output_shape[1:-1] == dataset.output_shape()[:-1] or (output_shape[1] is None), \
             'Network output shape %s does not match label shape %s.' % (output_shape[1:], dataset.output_shape()[:-1])
 
-    (ds, validation) = _prep_datasets(dataset, training_spec, chunk_size, output_shape[1])
+    if config.general.verbose():
+        print('Training model:')
+        print(model.summary())
 
-    callbacks = [tf.keras.callbacks.TerminateOnNaN(), tf.keras.callbacks.ReduceLROnPlateau()]
-    # add callbacks from DeltaLayers
-    for l in model.layers:
-        if isinstance(l, DeltaLayer):
-            c = l.callback()
-            if c:
-                callbacks.append(c)
-    if config.tensorboard.enabled():
-        tcb = tf.keras.callbacks.TensorBoard(log_dir=config.tensorboard.dir(),
-                                             update_freq='epoch',
-                                             histogram_freq=1,
-                                             write_images=True,
-                                             embeddings_freq=1)
-        callbacks.append(tcb)
+    return model
 
-    if config.mlflow.enabled():
-        mcb = _mlflow_train_setup(model, dataset, training_spec)
-        callbacks.append(mcb)
-        #print('Using mlflow folder: ' + mlflow.get_artifact_uri())
+def train(model_fn, dataset : ImageryDataset, training_spec):
+    """
+    Trains the specified model on a dataset according to a training
+    specification.
+    """
+    model = _compile_model(model_fn, dataset, training_spec)
+
+    (ds, validation) = _prep_datasets(dataset, training_spec, model.input_shape[1], model.output_shape[1])
+
+    (callbacks, mcb) = _build_callbacks(model, dataset, training_spec)
 
     try:
-        history = model.fit(ds,
-                            epochs=training_spec.epochs,
-                            callbacks=callbacks,
-                            validation_data=validation,
-                            validation_steps=training_spec.validation.steps if training_spec.validation else None,
-                            steps_per_epoch=training_spec.steps,
-                            verbose=1)
+
+        # Mark that we need to check the dataset counts the
+        # first time we try to read the images.
+        # This won't do anything unless we are resuming training.
+        dataset.reset_access_counts(set_need_check=True)
+
+        if (training_spec.steps is None) or (training_spec.steps > 0):
+            history = model.fit(ds,
+                                epochs=training_spec.epochs,
+                                callbacks=callbacks,
+                                validation_data=validation,
+                                validation_steps=training_spec.validation.steps if training_spec.validation else None,
+                                steps_per_epoch=training_spec.steps,
+                                verbose=1)
+        else: # Skip training
+            print('Skipping straight to validation')
+            history = model.evaluate(validation, steps=training_spec.validation.steps,
+                                     callbacks=callbacks, verbose=1)
 
         if config.mlflow.enabled():
             model_path = os.path.join(mcb.temp_dir, 'final_model.h5')
@@ -255,6 +322,8 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
     except:
         if config.mlflow.enabled():
             mlflow.log_param('Status', 'Aborted')
+            mlflow.log_param('Epoch', mcb.epoch)
+            mlflow.log_param('Batch', mcb.batch)
             mlflow.end_run('FAILED')
             model_path = os.path.join(mcb.temp_dir, 'aborted_model.h5')
             print('\nAborting, saving current model to %s.' % (mlflow.get_artifact_uri() + '/aborted_model.h5'))
@@ -264,8 +333,6 @@ def train(model_fn, dataset : ImageryDataset, training_spec):
         raise
     finally:
         if config.mlflow.enabled():
-            mlflow.log_param('Epoch', mcb.epoch)
-            mlflow.log_param('Batch', mcb.batch)
             if mcb and mcb.temp_dir:
                 shutil.rmtree(mcb.temp_dir)
 

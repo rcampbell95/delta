@@ -29,7 +29,7 @@ import numpy as np
 import pytest
 
 from delta.config import config
-from delta.imagery.sources import tiff
+from delta.extensions.sources import tiff
 
 import delta.config.modules
 delta.config.modules.register_all()
@@ -37,6 +37,9 @@ delta.config.modules.register_all()
 assert 'tensorflow' not in sys.modules, 'For speed of command line tool, tensorflow should not be imported by config!'
 
 from delta.imagery import imagery_dataset #pylint: disable=wrong-import-position
+
+import tensorflow as tf  #pylint: disable=wrong-import-position, wrong-import-order
+tf.get_logger().setLevel('ERROR')
 
 def config_reset():
     """
@@ -120,7 +123,7 @@ NUM_SOURCES = 1
 def all_sources(worldview_filenames):
     return [(worldview_filenames, '.zip', 'worldview', '_label.tiff', 'tiff')]
 
-def load_dataset(source, output_size, chunk_size=3):
+def load_dataset(source, output_size, chunk_size=3, autoencoder=False):
     config_reset()
     (image_path, label_path) = source[0]
     config.load(yaml_str=
@@ -144,15 +147,23 @@ def load_dataset(source, output_size, chunk_size=3):
                 (os.path.dirname(image_path), source[2], os.path.dirname(image_path), source[1],
                  source[4], os.path.dirname(label_path), source[3]))
 
-    dataset = imagery_dataset.ImageryDataset(config.dataset.images(), config.dataset.labels(),
-                                             chunk_size, output_size,
-                                             config.train.spec().chunk_stride)
-    return dataset
+    if autoencoder:
+        return imagery_dataset.AutoencoderDataset(config.dataset.images(), chunk_size,
+                                                  tile_size=config.io.tile_size(),
+                                                  chunk_stride=config.train.spec().chunk_stride)
+    return imagery_dataset.ImageryDataset(config.dataset.images(), config.dataset.labels(),
+                                          output_size, chunk_size, tile_size=config.io.tile_size(),
+                                          chunk_stride=config.train.spec().chunk_stride)
 
 @pytest.fixture(scope="function", params=range(NUM_SOURCES))
 def dataset(all_sources, request):
     source = all_sources[request.param]
     return load_dataset(source, 1)
+
+@pytest.fixture(scope="function", params=range(NUM_SOURCES))
+def ae_dataset(all_sources, request):
+    source = all_sources[request.param]
+    return load_dataset(source, 1, autoencoder=True)
 
 @pytest.fixture(scope="function")
 def dataset_block_label(all_sources):
