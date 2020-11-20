@@ -82,7 +82,7 @@ def _prep_datasets(ids, tc, chunk_size, output_size):
     validation=None
     if tc.validation:
         if tc.validation.from_training:
-            validation = ds.take(tc.validation.steps)
+            validation = ds.take(tc.validation.steps * tc.batch_size)
             ds = ds.skip(tc.validation.steps)
         else:
             vimg   = tc.validation.images
@@ -103,6 +103,7 @@ def _prep_datasets(ids, tc, chunk_size, output_size):
             validation = validation.batch(tc.batch_size)
     else:
         validation = None
+
 
     ds = ds.batch(tc.batch_size)
     ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
@@ -162,9 +163,9 @@ class _MLFlowCallback(tf.keras.callbacks.Callback):
         self.epoch = epoch
         for k in logs.keys():
             if k.startswith('val_'):
-                mlflow.log_metric('Validation ' + k[4:], logs[k], epoch)
+                mlflow.log_metric('Validation ' + k[4:], logs[k].item(), epoch)
             else:
-                mlflow.log_metric('Epoch ' + k, logs[k], epoch)
+                mlflow.log_metric('Epoch ' + k, logs[k].item(), epoch)
 
     def on_train_batch_end(self, batch, logs=None):
         self.batch = batch
