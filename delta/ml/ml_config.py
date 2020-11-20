@@ -59,7 +59,6 @@ class TrainingSpec:#pylint:disable=too-few-public-methods,too-many-arguments
         self.validation = validation
         self.steps = steps
         self.metrics = metrics
-        self.callbacks = callbacks
         self.tags = tags
         self.chunk_stride = chunk_stride
         self.optimizer = optimizer
@@ -181,7 +180,6 @@ class TrainingConfig(config.DeltaConfigComponent):
                                            metrics=self._config_dict['metrics'],
                                            validation=validation,
                                            steps=self._config_dict['steps'],
-                                           callbacks=self._config_dict['callbacks'],
                                            tags=self._config_dict['tags'],
                                            chunk_stride=self._config_dict['chunk_stride'],
                                            optimizer=self._config_dict['optimizer'])
