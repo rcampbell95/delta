@@ -165,9 +165,9 @@ class Individual(multiprocessing.Process):
         train_spec = copy.deepcopy(config.train.spec())
         train_spec.devices = self.devices
         _patience = lambda x: 10 if x > 100 else (x ** -1) * 10 **3
-        train_spec.callbacks.extend([
-            tf.keras.callbacks.EarlyStopping(patience=_patience(train_spec.epochs))
-        ])
+        #train_spec.callbacks.extend([
+        #    tf.keras.callbacks.EarlyStopping(patience=_patience(train_spec.epochs))
+        #])
 
         ads = assemble_dataset(train_spec)
 

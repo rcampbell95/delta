@@ -66,7 +66,7 @@ def main(options):
     if options.autoencoder:
         ids = imagery_dataset.AutoencoderDataset(images, temp_model.input_shape[1],
                                                  tile_size=config.io.tile_size(),
-                                                 chunk_stride=tc.chunk_stride)
+                                                 chunk_stride=tc.chunk_stride)    
     else:
         labels = config.dataset.labels()
         if not labels:
@@ -81,6 +81,7 @@ def main(options):
 
     assert temp_model.input_shape[1] == temp_model.input_shape[2], 'Must have square chunks in model.'
     assert temp_model.input_shape[3] == ids.num_bands(), 'Model takes wrong number of bands.'
+
 
     try:
         model, _ = train(model, ids, tc)
